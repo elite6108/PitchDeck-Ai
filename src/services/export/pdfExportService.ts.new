@@ -1,0 +1,387 @@
+/**
+ * PDF Export Service
+ * 
+ * Provides functionality to export deck to PDF format with vibrant backgrounds and clear text.
+ */
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { PitchDeck, Slide, SlideContent } from '../../types/deck';
+
+/**
+ * Callback function for reporting export progress
+ */
+export interface ExportProgressCallback {
+  (progress: number): void;
+}
+
+/**
+ * Get a color value for a theme
+ * 
+ * @param theme - Theme to get color for
+ * @returns CSS color value
+ */
+export const getThemeColorValue = (theme: string): string => {
+  const themeColors: Record<string, string> = {
+    'blue': '#1e3a8a',     // Dark blue
+    'green': '#064e3b',    // Dark green
+    'red': '#7f1d1d',      // Dark red
+    'purple': '#581c87',   // Dark purple
+    'gray': '#1f2937',     // Dark gray
+    'yellow': '#854d0e',   // Dark yellow
+    'orange': '#7c2d12',   // Dark orange
+    'teal': '#134e4a',     // Dark teal
+    'custom': '#1e293b'    // Default dark slate
+  };
+  return themeColors[theme] || '#0f172a';
+};
+
+/**
+ * Convert a background value to a valid CSS background
+ * 
+ * @param backgroundValue - Background value to convert
+ * @param defaultColor - Default color to use if no valid background is found
+ * @returns A valid CSS background
+ */
+export const convertBackground = (backgroundValue: string | undefined, defaultColor: string = '#0f172a'): string => {
+  if (!backgroundValue) return defaultColor;
+  if (backgroundValue.startsWith('#') || backgroundValue.startsWith('rgb')) return backgroundValue;
+  if (backgroundValue.startsWith('url(') || backgroundValue.includes('http')) {
+    // It's an image URL - ensure it's wrapped in url() and properly formatted
+    if (!backgroundValue.startsWith('url(')) {
+      return `url(${backgroundValue})`;
+    }
+    // Filter out document images
+    if (backgroundValue.includes('document')) {
+      return defaultColor;
+    }
+    return backgroundValue;
+  }
+  return defaultColor;
+};
+
+/**
+ * Render a slide element to a canvas
+ * 
+ * @param slide - HTML element to render
+ * @param width - Width of the canvas (unused but kept for API compatibility)
+ * @param height - Height of the canvas (unused but kept for API compatibility)
+ * @param theme - Color theme of the slide (unused but kept for API compatibility)
+ * @param scale - Scale factor for rendering (higher = better quality but slower)
+ * @returns Promise that resolves to a canvas element
+ */
+export const renderSlideToCanvas = async (
+  slide: HTMLElement, 
+  _width: number,
+  _height: number,
+  _theme: string,
+  scale: number = 3
+): Promise<HTMLCanvasElement> => {
+  
+  // Force image loading to complete before rendering
+  const images = Array.from(slide.querySelectorAll('img'));
+  await Promise.all(
+    images.map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise<void>(resolve => {
+        const onLoad = (): void => {
+          img.removeEventListener('load', onLoad);
+          resolve();
+        };
+        img.addEventListener('load', onLoad);
+        // Force highest quality images for export
+        if (img.src.includes('jpeg') || img.src.includes('jpg')) {
+          // Replace quality param for JPEG images to maximum
+          img.src = img.src.replace(/q=[0-9]+/, 'q=100').replace(/quality=[0-9]+/, 'quality=100');
+        }
+        // Apply CSS filter to enhance vibrancy
+        img.style.filter = 'contrast(1.05) saturate(1.2)';
+        // Add timeout to avoid infinite waiting
+        setTimeout(() => resolve(), 3000);
+      });
+    })
+  );
+
+  // Apply CSS filters to images for better vibrancy
+  Array.from(slide.querySelectorAll('img')).forEach(img => {
+    img.style.filter = 'contrast(1.05) saturate(1.2)';
+    // Force high quality
+    if (img.src.includes('jpeg') || img.src.includes('jpg')) {
+      img.src = img.src.replace(/q=[0-9]+/, 'q=100').replace(/quality=[0-9]+/, 'quality=100');
+    }
+  });
+  
+  return html2canvas(slide, {
+    scale,
+    useCORS: true,
+    allowTaint: true,
+    logging: false,
+    backgroundColor: '#0f172a', // Use dark blue background to match the web preview
+    imageTimeout: 7500, // Reduced timeout for faster processing
+    onclone: (clonedDocument) => {
+      // Apply completely revamped styles for exact web preview matching
+      const styles = clonedDocument.createElement('style');
+      styles.innerHTML = `
+        * {
+          -webkit-print-color-adjust: exact !important;
+          color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+
+        /* Clean slate - override default rendering */
+        body, html {
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          background: #0f172a !important;
+        }
+
+        /* Make everything super-explicit and force dark background */
+        .slide-wrapper, .slide, .slide-content, .slide-for-export, [class*="slide"],
+        .absolute, .inset-0, .export-background, [class*="wrapper"], [class*="container"] {
+          background-color: #0f172a !important;
+          color: white !important;
+          opacity: 1 !important;
+          box-shadow: none !important;
+          position: relative !important;
+          overflow: hidden !important;
+        }
+
+        /* Completely hide any document overlays */
+        [class*="document"], [style*="document"], [src*="document"],
+        .slide-background-document, .document-overlay, .document-preview {
+          display: none !important;
+          opacity: 0 !important;
+          visibility: hidden !important;
+        }
+
+        /* Force text elements to be super visible */
+        h1, h2, h3, h4, h5, h6, p, li, span, div {
+          color: white !important;
+          text-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+          font-weight: 600 !important;
+          opacity: 1 !important;
+        }
+
+        /* Special handling for headline text */
+        h1, .slide-headline, [class*="headline"] {
+          font-size: 2.5rem !important;
+          font-weight: 700 !important;
+          text-shadow: 0 2px 6px rgba(0,0,0,0.4) !important;
+        }
+
+        /* Fix positioning */
+        .text-center, [class*="center"] {
+          text-align: center !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+
+        /* Make paragraphs clearer */
+        p { 
+          margin-bottom: 1rem !important;
+          line-height: 1.7 !important;
+        }
+
+        /* Ensure all content inside is visible */
+        * {
+          opacity: 1 !important;
+          visibility: visible !important;
+        }
+
+        /* Hide all scrollbars */
+        ::-webkit-scrollbar {
+          display: none !important;
+        }
+
+        /* Ensure background images are visible but don't cause text overlay issues */
+        [style*="background-image"] {
+          opacity: 1 !important;
+          filter: contrast(1.05) saturate(1.3) !important;
+        }
+
+        /* Enhance image vibrancy */
+        img {
+          filter: contrast(1.05) saturate(1.2) !important;
+        }
+      `;
+      clonedDocument.head.appendChild(styles);
+      return clonedDocument;
+    }
+  });
+};
+
+/**
+ * Generate clean HTML for PDF export with vibrant backgrounds and clear text
+ * 
+ * @param slide - Slide to generate HTML for
+ * @param colorTheme - Color theme to apply
+ * @returns HTML string for the slide
+ */
+export const generateCleanExportHTML = (slide: Slide, colorTheme: string): string => {
+  // Get content from the slide
+  const slideType = slide.slide_type || 'content';
+  const headline = slide.content?.headline || slide.title || '';
+  const paragraphs = slide.content?.paragraphs || [];
+  const bullets = slide.content?.bullets || [];
+  
+  // Use the slide's theme or fallback to the deck theme
+  const bgColor = getThemeColorValue(slide.content?.color_theme || colorTheme || 'blue');
+  
+  let html = `
+    <div class="slide-content-export slide-${slideType}" style="background-color: ${bgColor}; color: white; padding: 60px; height: 100%; position: relative; overflow: hidden;">
+      <h1 class="slide-headline" style="color: white; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.3); font-size: 2.5rem; margin-bottom: 2rem;">${headline}</h1>
+  `;
+  
+  // Add a dark tinted background for better text contrast
+  html += `<div style="position: absolute; inset: 0; background-color: rgba(15, 23, 42, 0.8); z-index: 1;"></div>`;
+  
+  // Add content wrapper with higher z-index
+  html += `<div style="position: relative; z-index: 2;">`;
+  
+  // Add paragraphs with proper styling
+  if (paragraphs.length > 0) {
+    html += '<div class="slide-paragraphs">';
+    paragraphs.forEach(p => {
+      html += `<p style="color: white; font-weight: 500; margin-bottom: 1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">${p}</p>`;
+    });
+    html += '</div>';
+  }
+  
+  // Add bullets with better styling
+  if (bullets.length > 0) {
+    html += '<ul class="slide-bullets" style="list-style-type: none; padding-left: 0;">';
+    bullets.forEach(bullet => {
+      html += `<li style="color: white; font-weight: 500; margin-bottom: 0.5rem; padding-left: 1rem; border-left: 3px solid #60a5fa; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">${bullet}</li>`;
+    });
+    html += '</ul>';
+  }
+  
+  html += '</div></div>';
+  
+  return html;
+};
+
+/**
+ * Prepare slides for export by applying necessary styles and transformations
+ * 
+ * @param slides - Array of slide elements to prepare
+ * @param deck - The pitch deck containing slide data
+ */
+export const prepareSlidesForExport = (slides: HTMLElement[], deck: PitchDeck): void => {
+  // Apply export specific styles to each slide
+  slides.forEach((slide, index) => {
+    if (!deck.slides) return;
+    
+    const content = deck.slides[index]?.content || {};
+    const theme = content.color_theme || (deck as any).colorTheme || 'blue';
+    
+    // Apply appropriate background based on content
+    if (content.background_image && content.background_image !== 'none') {
+      slide.style.backgroundImage = convertBackground(content.background_image);
+      
+      // Add overlay for better text contrast
+      const overlay = document.createElement('div');
+      overlay.style.position = 'absolute';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100%';
+      overlay.style.height = '100%';
+      overlay.style.backgroundColor = 'rgba(0,0,0,0.3)';
+      slide.appendChild(overlay);
+    } else {
+      slide.style.backgroundColor = content.background_color || getThemeColorValue(theme);
+    }
+    
+    // Enhance images for better export quality
+    const images = slide.querySelectorAll('img');
+    images.forEach((img: HTMLImageElement) => {
+      img.style.filter = 'contrast(1.05) saturate(1.2)';
+    });
+  });
+};
+
+/**
+ * Export deck to PDF with vibrant backgrounds and clear text
+ * 
+ * @param deck - The pitch deck to export
+ * @param slidesContainer - HTML element containing the rendered slides
+ * @param onProgress - Callback for reporting export progress
+ * @returns Promise that resolves to the generated PDF
+ */
+export const exportToPDF = async (
+  deck: PitchDeck,
+  slidesContainer: HTMLElement,
+  onProgress: ExportProgressCallback
+): Promise<jsPDF> => {
+  // Create PDF with properly configured settings for better quality output
+  const pdf = new jsPDF({
+    orientation: 'landscape',
+    unit: 'pt', 
+    format: [1920, 1080],
+    compress: true, 
+    precision: 8,
+    hotfixes: ['px_scaling']
+  });
+
+  try {
+    // Get all slides as DOM elements
+    const slideElements = Array.from(slidesContainer.querySelectorAll('.slide-for-export'));
+    if (slideElements.length === 0) {
+      throw new Error('No slides found for export');
+    }
+
+    // Calculate total number of steps for progress reporting
+    const totalSteps = slideElements.length * 2; // Render + add to PDF
+    let currentStep = 0;
+
+    // Apply styles to improve export quality
+    prepareSlidesForExport(slideElements as HTMLElement[], deck);
+
+    // Process each slide
+    for (let i = 0; i < slideElements.length; i++) {
+      // Report progress for rendering step
+      currentStep++;
+      onProgress(Math.round((currentStep / totalSteps) * 100));
+
+      // Render slide to canvas with enhanced settings
+      const slide = slideElements[i] as HTMLElement;
+      const canvas = await renderSlideToCanvas(slide, 1920, 1080, 'blue', 2);
+
+      // Add canvas to PDF, except for the first slide which is added differently
+      if (i > 0) {
+        pdf.addPage();
+      }
+
+      // Add the slide to the PDF with proper positioning
+      pdf.addImage(
+        canvas.toDataURL('image/jpeg', 0.95),
+        'JPEG',
+        0,
+        0,
+        pdf.internal.pageSize.getWidth(),
+        pdf.internal.pageSize.getHeight(),
+        `slide-${i}`,
+        'FAST'
+      );
+
+      // Report progress for PDF addition step
+      currentStep++;
+      onProgress(Math.round((currentStep / totalSteps) * 100));
+    }
+
+    // Final progress update
+    onProgress(100);
+    return pdf;
+  } catch (error) {
+    console.error('Error exporting to PDF:', error);
+    throw error;
+  }
+};
+
+// Default export for backward compatibility
+const pdfExportService = {
+  exportToPDF,
+  prepareSlidesForExport
+};
+
+export default pdfExportService;
