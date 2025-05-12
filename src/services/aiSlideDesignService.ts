@@ -4,7 +4,7 @@
  */
 import { OpenAI } from 'openai';
 import { SlideStyle, SlideLayout, professionalThemeStyles } from './slideDesignService';
-import { PitchDeck, Slide } from '../types/deck';
+import { PitchDeck } from '../types/deck';
 
 // Initialize OpenAI for content analysis
 const openai = new OpenAI({
@@ -200,7 +200,7 @@ const aiSlideDesignService = {
    * @param slideContent Content of the slide
    * @returns Custom slide design properties
    */
-  generateCustomSlideDesign(analysis: ContentAnalysis, slideType: string, slideContent: any) {
+  generateCustomSlideDesign(analysis: ContentAnalysis, slideType: string, _slideContent: any) {
     // Select industry style guide
     const industryGuide = industryStyleGuides[analysis.industry] || industryStyleGuides.default;
     
@@ -277,35 +277,114 @@ const aiSlideDesignService = {
    * @returns Updated deck with AI styling
    */
   async applyIntelligentStyling(deck: PitchDeck): Promise<PitchDeck> {
+    console.log('AI Slide Design: Starting intelligent styling');
     // Clone the deck to avoid modifying the original
-    const styledDeck = { ...deck };
+    const styledDeck = JSON.parse(JSON.stringify(deck)) as PitchDeck;
     
-    // Analyze the deck content
-    const analysis = await this.analyzeDeckContent(deck);
-    
-    // Apply custom styling to each slide
-    if (styledDeck.slides) {
-      styledDeck.slides = styledDeck.slides.map(slide => {
-        const slideType = slide.slide_type || 'content';
-        
-        // Update slide content with AI-generated styling
-        if (slide.content) {
-          slide.content = {
-            ...slide.content,
-            color_theme: analysis.industry === 'technology' ? 'gradient' : 
-                         analysis.industry === 'finance' ? 'dark' : 
-                         analysis.industry === 'healthcare' ? 'forest' : 'light',
-            design_style: analysis.recommendedStyle || 'modern',
-            ai_styling: true,
-            custom_design: this.generateCustomSlideDesign(analysis, slideType, slide.content)
-          };
+    try {
+      // Import the stock image service to get custom backgrounds
+      const stockImageService = await import('./stockImageService').then(m => m.default);
+      
+      // First, perform an in-depth analysis of the deck content using OpenAI
+      console.log('AI Slide Design: Analyzing deck content with OpenAI');
+      let analysis: ContentAnalysis;
+      
+      if (import.meta.env.VITE_OPENAI_API_KEY) {
+        try {
+          analysis = await this.analyzeDeckContent(deck);
+          console.log('AI Slide Design: Analysis complete', analysis);
+        } catch (error) {
+          console.error('Error during OpenAI analysis:', error);
+          analysis = this.getFallbackAnalysis(deck);
         }
+      } else {
+        console.log('AI Slide Design: No OpenAI API key, using fallback analysis');
+        analysis = this.getFallbackAnalysis(deck);
+      }
+      
+      // Fetch background images based on keywords from the analysis
+      console.log('AI Slide Design: Fetching background images for keywords', analysis.keyThemes);
+      const searchPromise = analysis.keyThemes.length > 0 ?
+        stockImageService.searchImages({
+          query: analysis.keyThemes.slice(0, 3).join(' '),
+          count: 5, // Use count instead of perPage to match the interface
+          orientation: 'landscape'
+        }) : Promise.resolve([]);
         
-        return slide;
+      const themePromise = stockImageService.getThemedBackgrounds({
+        themeColor: analysis.industry === 'technology' ? 'blue' : 
+                     analysis.industry === 'healthcare' ? 'green' : 'purple',
+        perPage: 5
       });
+      
+      // Get multiple sets of images for more variety
+      const [keywordImages, themeImages] = await Promise.all([searchPromise, themePromise]);
+      console.log(`AI Slide Design: Retrieved ${keywordImages.length} keyword images and ${themeImages.length} theme images`);
+      
+      // Combine and shuffle images for more variety
+      const allImages = [...keywordImages, ...themeImages];
+      const shuffledImages = allImages.sort(() => Math.random() - 0.5);
+      
+      // Apply custom styling to each slide
+      if (styledDeck.slides) {
+        styledDeck.slides = await Promise.all(styledDeck.slides.map(async (slide, index) => {
+          const slideType = slide.slide_type || 'content';
+          
+          // Select image based on slide position and type
+          let selectedImage;
+          if (slideType === 'cover') {
+            // Always use a keyword image for cover slides if available
+            selectedImage = keywordImages.length > 0 ? keywordImages[0] : 
+                           (themeImages.length > 0 ? themeImages[0] : undefined);
+          } else {
+            // Use varied images for other slides
+            selectedImage = shuffledImages[index % shuffledImages.length];
+          }
+          
+          // Update slide content with AI-generated styling
+          if (slide.content) {
+            // Determine colors based on analysis and industry
+            const colorTheme = analysis.industry === 'technology' ? 'blue' : 
+                              analysis.industry === 'finance' ? 'purple' : 
+                              analysis.industry === 'healthcare' ? 'green' : 
+                              analysis.industry === 'education' ? 'teal' : 
+                              analysis.industry === 'creative' ? 'orange' : 'blue';
+                              
+            const designStyle = (analysis.recommendedStyle === 'corporate' || analysis.recommendedStyle === 'innovative') ? 'modern' : 
+                              (analysis.recommendedStyle === 'creative') ? 'creative' : 
+                              (analysis.recommendedStyle === 'professional') ? 'classic' : 'modern';
+            
+            // Apply dynamic styling to the slide
+            slide.content = {
+              ...slide.content,
+              color_theme: colorTheme,
+              design_style: designStyle,
+              font_style: analysis.businessTone === 'professional' ? 'serif' : 'sans-serif',
+              background_image: selectedImage?.url, // Use the url property for background
+              ai_styling: true,
+              custom_design: this.generateCustomSlideDesign(analysis, slideType, slide.content),
+              use_gradient_overlay: true // Add overlay for better text contrast
+            };
+            
+            // Add slide-specific styling
+            if (slideType === 'cover') {
+              slide.content.text_alignment = 'center';
+            } else if (slideType === 'data' || slideType === 'financials') {
+              slide.content.text_alignment = 'left';
+            }
+          }
+          
+          return slide;
+        }));
+      }
+      
+      console.log('AI Slide Design: Styling complete');
+      return styledDeck;
+      
+    } catch (error) {
+      console.error('Error in AI styling process:', error);
+      return styledDeck; // Return original deck if styling fails
     }
-    
-    return styledDeck;
   },
   
   /**
@@ -677,7 +756,7 @@ const aiSlideDesignService = {
    * Extract keywords from deck content for fallback analysis
    */
   extractKeywords(deck: PitchDeck): string[] {
-    const keywords: string[] = [];
+    const _keywords: string[] = [];
     const text: string[] = [];
     
     // Collect all text content

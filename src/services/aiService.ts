@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { DesignPreferences, QuestionnaireData } from '../types/deck';
+import { DesignStyle } from '../types/themes';
 
 // Initialize the OpenAI client
 const openai = new OpenAI({
@@ -222,7 +223,7 @@ function adjustColorBrightness(hex: string, percent: number): string {
 }
 
 // Helper function to get layouts based on design style
-function getStyleLayouts(designStyle: DesignStyle): Record<string, string> {
+function getStyleLayouts(designStyle: DesignStyle | undefined): Record<string, string> {
   const styleLayouts: Record<string, Record<string, string>> = {
     modern: {
       default: 'centered',
@@ -286,7 +287,7 @@ function getStyleLayouts(designStyle: DesignStyle): Record<string, string> {
     }
   };
   
-  return styleLayouts[designStyle] || styleLayouts.modern;
+  return designStyle && styleLayouts[designStyle] ? styleLayouts[designStyle] : styleLayouts.modern;
 }
 
 function createFallbackContent(questionnaire: QuestionnaireData): Record<string, AIEnhancedContent> {
@@ -301,8 +302,8 @@ function createFallbackContent(questionnaire: QuestionnaireData): Record<string,
   };
   
   // Get theme colors and style layouts
-  const themeColors = getThemeColors(designPrefs);
-  const styleLayouts = getStyleLayouts(designPrefs.designStyle);
+  getThemeColors(designPrefs); // Not using the result, but keeping for future use
+  getStyleLayouts(designPrefs.designStyle); // Not using the result, but keeping for future use
   
   return {
     "Cover": {

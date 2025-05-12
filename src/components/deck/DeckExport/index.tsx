@@ -12,6 +12,7 @@ import ExportProgress from './ExportProgress';
 import StyleOptions from './StyleOptions';
 import ExportActions from './ExportActions';
 import ExportSlideRenderer from './ExportSlideRenderer';
+import ExportPreviewRenderer from './ExportPreviewRenderer';
 
 interface DeckExportProps {
   deck: PitchDeck;
@@ -34,6 +35,8 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
   const [aiProcessing, setAiProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatedDeck, setUpdatedDeck] = useState<PitchDeck>(deck);
+  const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
+  const [showPdfPreview, setShowPdfPreview] = useState(true);
   const slidesContainerRef = useRef<HTMLDivElement>(null);
 
   // Update deck reference when props change
@@ -288,6 +291,57 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
             showThemeSelector={showThemeSelector}
             onToggleThemeSelector={() => setShowThemeSelector(!showThemeSelector)}
           />
+          
+          {/* PDF Preview Section */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-medium">PDF Preview</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowPdfPreview(!showPdfPreview)}
+                  className="text-sm px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition"
+                >
+                  {showPdfPreview ? 'Hide Preview' : 'Show Preview'}
+                </button>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => setSelectedSlideIndex(Math.max(0, selectedSlideIndex - 1))}
+                    disabled={selectedSlideIndex === 0}
+                    className="p-1 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    &larr;
+                  </button>
+                  <span className="text-sm">
+                    {updatedDeck.slides && updatedDeck.slides.length > 0 ? 
+                      `${selectedSlideIndex + 1}/${updatedDeck.slides.length}` : 
+                      '0/0'}
+                  </span>
+                  <button 
+                    onClick={() => updatedDeck.slides && 
+                      setSelectedSlideIndex(Math.min(updatedDeck.slides.length - 1, selectedSlideIndex + 1))}
+                    disabled={!updatedDeck.slides || selectedSlideIndex >= updatedDeck.slides.length - 1}
+                    className="p-1 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    &rarr;
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {showPdfPreview && updatedDeck.slides && updatedDeck.slides.length > 0 && (
+              <div className="bg-gray-100 p-4 rounded-lg overflow-hidden">
+                <div className="preview-container bg-white rounded-lg shadow-inner overflow-hidden mx-auto max-w-3xl">
+                  <ExportPreviewRenderer 
+                    slide={updatedDeck.slides[selectedSlideIndex]}
+                    colorTheme={selectedTheme}
+                  />
+                </div>
+                <div className="text-xs text-center text-gray-500 mt-2">
+                  This preview shows how your slides will look in the exported PDF
+                </div>
+              </div>
+            )}
+          </div>
           
           <ExportProgress
             isExporting={exporting}

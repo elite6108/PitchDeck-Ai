@@ -8,10 +8,10 @@ import {
   ListIcon,
   XIcon
 } from 'lucide-react';
-import Header from '../../components/layout/Header';
+// Header component is not used in this file
 import SlideViewer from '../../components/deck/SlideViewer';
 import SlideThumbnail from '../../components/deck/SlideThumbnail';
-import DeckExport from '../../components/deck/DeckExport';
+import DeckExport from '../../components/deck/DeckExport/index';
 import Button from '../../components/ui/Button';
 import { useDeckStore } from '../../store/deckStore';
 
@@ -178,7 +178,7 @@ const ViewDeckPage: React.FC = () => {
         {/* Main slide display */}
         <div className="flex-grow flex flex-col items-center justify-center p-8 relative">
           <div className="max-w-4xl w-full">
-            <SlideViewer slide={currentSlide} template="default" />
+            <SlideViewer slide={currentSlide} />
           </div>
           
           {/* Navigation buttons */}
@@ -189,7 +189,6 @@ const ViewDeckPage: React.FC = () => {
               onClick={handlePrevious}
               isDisabled={currentSlideIndex === 0}
               className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700 opacity-100 shadow-lg"
-              style={{ backgroundColor: '#1f2937', opacity: 1 }}
             >
               <ArrowLeftIcon className="h-4 w-4 mr-1" />
               Previous
@@ -199,8 +198,7 @@ const ViewDeckPage: React.FC = () => {
               size="sm"
               onClick={handleNext}
               isDisabled={currentSlideIndex === currentDeck.slides.length - 1}
-              className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700 opacity-100 shadow-lg"
-              style={{ backgroundColor: '#1f2937', opacity: 1 }}
+              className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700 opacity-100 shadow-lg bg-[#1f2937]"
             >
               Next
               <ArrowRightIcon className="h-4 w-4 ml-1" />

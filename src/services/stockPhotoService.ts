@@ -51,7 +51,11 @@ export const stockPhotoService = {
         style: "natural"
       });
 
-      return response.data[0].url;
+      // Check if response and data exist before accessing url
+      if (response && response.data && response.data.length > 0 && response.data[0].url) {
+        return response.data[0].url;
+      }
+      throw new Error('No valid image URL in the API response');
     } catch (error) {
       console.error('Error generating stock photo:', error);
       
@@ -74,7 +78,7 @@ export const stockPhotoService = {
    * @param theme The design theme
    * @returns An array of background image URLs
    */
-  getThemedBackgrounds(slideType: string, theme: string): string[] {
+  getThemedBackgrounds(_slideType: string, theme: string): string[] {
     // Professionally curated background options by theme
     const themedBackgrounds = {
       light: [

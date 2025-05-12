@@ -10,7 +10,7 @@ import ThemeSelector from './ThemeSelector';
 import aiSlideDesignService from '../../services/aiSlideDesignService';
 
 // Define possible color theme values as a type
-type ColorTheme = 'blue' | 'green' | 'purple' | 'red' | 'orange' | 'teal' | 'custom' | undefined;
+type ColorTheme = 'blue' | 'green' | 'purple' | 'red' | 'orange' | 'teal' | 'custom';
 
 type DeckExportProps = {
   deck: PitchDeck;
@@ -257,7 +257,7 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
           styledSlide.content = {
             ...styledSlide.content,
             color_theme: recommendedTheme,
-            design_style: analysis.recommendedStyle === 'corporate' ? 'modern' : 'custom',
+            design_style: analysis.recommendedStyle === 'corporate' ? 'modern' : 'creative',
             font_style: analysis.businessTone === 'professional' ? 'sans-serif' : 'serif'
           };
           
@@ -324,7 +324,9 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
   };
   
   // Handle background image selection
-  const handleBackgroundSelect = (imageUrl: string) => {
+  const handleBackgroundSelect = (imageUrl: string | undefined) => {
+    // Return early if imageUrl is undefined
+    if (!imageUrl) return;
     if (imageUrl === 'auto') {
       showTemporaryError("AI will find relevant images during export");
       return;
@@ -470,10 +472,15 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
                 <ThemeSelector 
                   currentTheme={selectedTheme}
                   onThemeSelect={(themeId) => {
-                    // Cast themeId to ColorTheme type
-                    const typedThemeId = themeId as ColorTheme;
-                    setSelectedTheme(typedThemeId);
-                    applyThemeToSlides(typedThemeId);
+                    // Return early if themeId is undefined
+                    if (!themeId) return;
+                    
+                    // Check if themeId is a valid ColorTheme value
+                    if (['blue', 'green', 'purple', 'red', 'orange', 'teal', 'custom'].includes(themeId)) {
+                      const typedThemeId = themeId as ColorTheme;
+                      setSelectedTheme(typedThemeId);
+                      applyThemeToSlides(typedThemeId);
+                    }
                   }}
                   onBackgroundSelect={handleBackgroundSelect}
                 />
@@ -483,7 +490,7 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
         </div>
         
         <div className="p-6 border-t border-gray-200 space-y-3 sm:space-y-4">
-          <div className="border rounded-lg p-3 sm:p-4 flex items-center hover:bg-gray-50 cursor-pointer" onClick={!exporting ? handleExportPDF : undefined}>
+          <div className="border rounded-lg p-3 sm:p-4 flex items-center hover:bg-gray-50 cursor-pointer" onClick={!exporting ? () => handleExportPDF() : undefined}>
             <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 bg-error-100 rounded-lg flex items-center justify-center">
               <FileIcon className="w-5 h-5 sm:w-6 sm:h-6 text-error-600" />
             </div>
@@ -494,8 +501,7 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
             <Button
               variant="outline"
               size="sm"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
+              onClick={() => {
                 if (!exporting) handleExportPDF();
               }}
               isLoading={exporting && exportType === 'pdf'}
@@ -507,7 +513,7 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
             </Button>
           </div>
           
-          <div className="border rounded-lg p-3 sm:p-4 flex items-center hover:bg-gray-50 cursor-pointer" onClick={!exporting ? handleExportPPTX : undefined}>
+          <div className="border rounded-lg p-3 sm:p-4 flex items-center hover:bg-gray-50 cursor-pointer" onClick={!exporting ? () => handleExportPPTX() : undefined}>
             <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 bg-primary-100 rounded-lg flex items-center justify-center">
               <PresentationIcon className="w-5 h-5 sm:w-6 sm:h-6 text-primary-600" />
             </div>
@@ -518,8 +524,7 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
             <Button
               variant="outline"
               size="sm"
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
+              onClick={() => {
                 if (!exporting) handleExportPPTX();
               }}
               isLoading={exporting && exportType === 'pptx'}

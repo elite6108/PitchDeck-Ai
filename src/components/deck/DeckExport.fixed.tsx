@@ -18,13 +18,17 @@ type DeckExportProps = {
 const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
   const [exporting, setExporting] = useState(false);
   const [exportType, setExportType] = useState<'pdf' | 'pptx'>('pdf');
-  const [exportProgress, setExportProgress] = useState(0);
+  // Progress tracking for export operations
+  const [, setExportProgress] = useState(0);
   const [selectedTheme, setSelectedTheme] = useState<ColorTheme>('blue');
-  const [selectedBackground, setSelectedBackground] = useState('');
+  // Track the selected background image
+  const [, setSelectedBackground] = useState('');
   const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [useAiStyling, setUseAiStyling] = useState(false);
-  const [aiProcessing, setAiProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Track AI processing state
+  const [, setAiProcessing] = useState(false);
+  // Track error state
+  const [, setError] = useState<string | null>(null);
   const slidesContainerRef = useRef<HTMLDivElement>(null);
 
   const handleExportPDF = async () => {
@@ -62,7 +66,8 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
       if (useAiStyling) {
         setAiProcessing(true);
         // Use the aiSlideDesignService to analyze content
-        const analysis = await aiSlideDesignService.analyzeDeckContent(deck);
+        // Analyze deck content
+        await aiSlideDesignService.analyzeDeckContent(deck);
         // Here you would apply the analysis results to the deck styling
         setAiProcessing(false);
       }
@@ -85,7 +90,7 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
     const updatedDeck = {...deck};
     
     // Map over slides safely
-    updatedDeck.slides = updatedDeck.slides.map(slide => {
+    updatedDeck.slides = updatedDeck.slides?.map(slide => {
       const updatedSlide = {...slide};
       // Apply theme to each slide
       if (updatedSlide.content) {
@@ -214,6 +219,8 @@ const DeckExport: React.FC<DeckExportProps> = ({ deck, onClose }) => {
                 applyThemeToSlides(typedThemeId);
               }}
               onBackgroundSelect={(imageUrl) => {
+                if (!imageUrl) return; // Guard against undefined
+                
                 if (imageUrl === 'auto') {
                   showTemporaryError("AI will find relevant images during export");
                 } else {

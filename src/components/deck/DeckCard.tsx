@@ -4,16 +4,20 @@ import {
   PresentationIcon, 
   EditIcon, 
   Trash2Icon, 
-  ExternalLinkIcon
+  ExternalLinkIcon,
+  SparklesIcon
 } from 'lucide-react';
 import type { PitchDeck } from '../../types/deck';
+import DeckCreationIndicator from '../dashboard/DeckCreationIndicator';
+import { useAutoStyling } from '../../hooks/useAutoStyling';
 
 interface DeckCardProps {
   deck: PitchDeck;
   onDelete: (id: string) => void;
+  showStylingStatus?: boolean;
 }
 
-const DeckCard: React.FC<DeckCardProps> = ({ deck, onDelete }) => {
+const DeckCard: React.FC<DeckCardProps> = ({ deck, onDelete, showStylingStatus = true }) => {
   const formattedDate = new Date(deck.created_at || '').toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -29,9 +33,14 @@ const DeckCard: React.FC<DeckCardProps> = ({ deck, onDelete }) => {
               <PresentationIcon className="h-5 w-5 text-primary-600" />
             </div>
             <div className="ml-3">
-              <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">
-                {deck.title}
-              </h3>
+              <div className="flex items-center">
+                <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">
+                  {deck.title}
+                </h3>
+                {showStylingStatus && deck.id && (
+                  <AIStylingIndicator deckId={deck.id} />
+                )}
+              </div>
               <p className="text-sm text-gray-500">
                 Created {formattedDate}
               </p>
@@ -74,6 +83,24 @@ const DeckCard: React.FC<DeckCardProps> = ({ deck, onDelete }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+// AI Styling indicator component that shows styling status
+const AIStylingIndicator: React.FC<{ deckId: string }> = ({ deckId }) => {
+  const { stylingStatus, isEnabled } = useAutoStyling(deckId);
+  
+  // Only show the indicator if auto-styling is enabled
+  if (!isEnabled) return null;
+  
+  return (
+    <span className="ml-2">
+      <DeckCreationIndicator 
+        status={stylingStatus} 
+        isEnabled={isEnabled} 
+        small={true}
+      />
+    </span>
   );
 };
 

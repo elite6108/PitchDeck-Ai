@@ -16,8 +16,8 @@ interface ThemeOption {
 
 interface ThemeSelectorProps {
   currentTheme: string;
-  onThemeSelect: (themeId: string) => void;
-  onBackgroundSelect: (imageUrl: string) => void;
+  onThemeSelect: (themeId: string | undefined) => void;
+  onBackgroundSelect: (imageUrl: string | undefined) => void;
 }
 
 const ThemeSelector: React.FC<ThemeSelectorProps> = ({ 

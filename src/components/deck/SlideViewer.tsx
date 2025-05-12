@@ -33,9 +33,9 @@ const SlideViewer: React.FC<SlideViewerProps> = ({
   const getDesignElements = () => {
     const elements = [];
     
-    // Get primary and secondary colors based on theme
+    // Get primary color based on theme
     const primaryColor = getAccentColor(colorTheme);
-    const secondaryColor = primaryColor.replace('F6', 'A0').replace('81', '50');
+    // Removed unused secondaryColor variable
     
     // Add design elements based on design style
     if (designStyle === 'modern') {
@@ -215,9 +215,13 @@ const SlideViewer: React.FC<SlideViewerProps> = ({
                 {/* Direct background with support for both URLs and CSS gradients */}
                 <div className="absolute inset-0 export-background" 
                      style={{ 
-                       background: content.background_image.startsWith('data:') || content.background_image.startsWith('http') 
+                       // Fix: Replace shorthand background with specific properties to avoid React warnings
+                       backgroundImage: content.background_image.startsWith('data:') || content.background_image.startsWith('http') 
                          ? `url(${content.background_image})` 
-                         : content.background_image,
+                         : 'none',
+                       backgroundColor: (!content.background_image.startsWith('data:') && !content.background_image.startsWith('http')) 
+                         ? content.background_image 
+                         : 'transparent',
                        backgroundSize: 'cover',
                        backgroundPosition: 'center',
                        zIndex: 0,

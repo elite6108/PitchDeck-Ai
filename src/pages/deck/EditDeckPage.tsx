@@ -12,7 +12,7 @@ import Footer from '../../components/layout/Footer';
 import SlideThumbnail from '../../components/deck/SlideThumbnail';
 import SlideViewer from '../../components/deck/SlideViewer';
 import SlideEditor from '../../components/deck/SlideEditor';
-import DeckExport from '../../components/deck/DeckExport';
+import DeckExport from '../../components/deck/DeckExport/index';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useDeckStore } from '../../store/deckStore';

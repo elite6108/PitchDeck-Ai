@@ -10,7 +10,7 @@ interface ButtonProps {
   isLoading?: boolean;
   isDisabled?: boolean;
   fullWidth?: boolean;
-  onClick?: () => void;
+  onClick?: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   type?: 'button' | 'submit' | 'reset';
   className?: string;
 }

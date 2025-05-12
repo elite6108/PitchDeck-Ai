@@ -4,11 +4,14 @@ import { useDeckStore } from '../../store/deckStore';
 import Input from '../ui/Input';
 import TextArea from '../ui/TextArea';
 import Button from '../ui/Button';
+import { Sparkles } from 'lucide-react';
 import type { QuestionnaireData } from '../../types/deck';
+import aiStylingService from '../../services/aiStylingService';
 
-const Questionnaire: React.FC = () => {
+const Questionnaire: React.FC<{}> = () => {
   const navigate = useNavigate();
   const { generateDeckFromQuestionnaire, loading, error } = useDeckStore();
+  const [autoStylingEnabled, setAutoStylingEnabled] = useState(true);
   
   // Fixed type definition to ensure defaults for all required fields
   const [formData, setFormData] = useState<QuestionnaireData>({
@@ -32,7 +35,7 @@ const Questionnaire: React.FC = () => {
   });
   
   const [step, setStep] = useState(1);
-  const totalSteps = 5; // Increased to add design step
+  const totalSteps = 5; // Design preferences, company info, problem, solution, business details
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -101,9 +104,21 @@ const Questionnaire: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Generate the deck from questionnaire data
     const deck = await generateDeckFromQuestionnaire(formData);
     
     if (deck && deck.id) {
+      // If auto-styling is enabled, begin background analysis immediately
+      if (autoStylingEnabled) {
+        // Start background analysis and styling
+        aiStylingService.beginBackgroundAnalysis(deck);
+        
+        // Optionally, apply styling immediately (this would block, so we just do background)
+        // We could show a toast notification here that styling is in progress
+        console.log('AI styling initiated in background');
+      }
+      
+      // Navigate to the view page
       navigate(`/deck/${deck.id}/view`);
     }
   };
@@ -234,74 +249,120 @@ const Questionnaire: React.FC = () => {
             <h3 className="text-lg font-medium text-gray-900 mb-3">Design Your Pitch Deck</h3>
             <p className="text-sm text-gray-500 mb-6">Customize how your pitch deck looks to match your brand identity.</p>
             
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Color Theme</label>
-              <select
-                name="designPreferences.colorTheme"
-                value={formData.designPreferences?.colorTheme}
-                onChange={handleChange}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-              >
-                <option value="blue">Blue (Professional)</option>
-                <option value="green">Green (Growth)</option>
-                <option value="purple">Purple (Innovation)</option>
-                <option value="red">Red (Bold)</option>
-                <option value="orange">Orange (Creative)</option>
-                <option value="teal">Teal (Modern)</option>
-                <option value="custom">Custom Color</option>
-              </select>
+            {/* AI Styling Toggle */}
+            <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 mb-6">
+              <div className="flex items-center">
+                <div className="mr-3 flex-shrink-0">
+                  <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                    <Sparkles className="h-5 w-5 text-purple-600" />
+                  </div>
+                </div>
+                <div className="flex-grow">
+                  <h3 className="text-sm font-medium text-purple-800">AI-Powered Styling</h3>
+                  <p className="text-sm text-purple-700">Let our AI automatically select the perfect design and images that match your content.</p>
+                </div>
+                <div className="ml-4 flex-shrink-0">
+                  <div className="relative inline-block w-12 mr-2 align-middle select-none">
+                    <input 
+                      type="checkbox" 
+                      name="autoStyling" 
+                      id="autoStyling" 
+                      checked={autoStylingEnabled}
+                      onChange={() => setAutoStylingEnabled(!autoStylingEnabled)}
+                      className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                      style={{
+                        right: autoStylingEnabled ? '0' : 'auto',
+                        transition: 'all 0.3s',
+                        borderColor: autoStylingEnabled ? '#8B5CF6' : '#D1D5DB'
+                      }}
+                    />
+                    <label 
+                      htmlFor="autoStyling" 
+                      className="toggle-label block overflow-hidden h-6 rounded-full cursor-pointer"
+                      style={{
+                        backgroundColor: autoStylingEnabled ? '#8B5CF6' : '#D1D5DB',
+                        transition: 'background-color 0.3s'
+                      }}
+                    ></label>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            {formData.designPreferences?.colorTheme === 'custom' && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Custom Color</label>
-                <div className="flex items-center">
-                  <input
-                    type="color"
-                    name="designPreferences.customPrimaryColor"
-                    value={formData.designPreferences?.customPrimaryColor || '#3B82F6'}
+            {/* Manual styling options when AI is disabled */}
+            {!autoStylingEnabled && (
+              <div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Color Theme</label>
+                  <select
+                    name="designPreferences.colorTheme"
+                    value={formData.designPreferences?.colorTheme}
                     onChange={handleChange}
-                    className="h-10 w-10 mr-2 border-0 rounded p-0"
-                  />
-                  <Input
-                    name="designPreferences.customPrimaryColor"
-                    value={formData.designPreferences?.customPrimaryColor || '#3B82F6'}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                  >
+                    <option value="blue">Blue (Professional)</option>
+                    <option value="green">Green (Growth)</option>
+                    <option value="purple">Purple (Innovation)</option>
+                    <option value="red">Red (Bold)</option>
+                    <option value="orange">Orange (Creative)</option>
+                    <option value="teal">Teal (Modern)</option>
+                    <option value="custom">Custom Color</option>
+                  </select>
+                </div>
+                
+                {formData.designPreferences?.colorTheme === 'custom' && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Custom Color</label>
+                    <div className="flex items-center">
+                      <input
+                        type="color"
+                        name="designPreferences.customPrimaryColor"
+                        value={formData.designPreferences?.customPrimaryColor || '#3B82F6'}
+                        onChange={handleChange}
+                        className="h-10 w-10 mr-2 border-0 rounded p-0"
+                      />
+                      <Input
+                        name="designPreferences.customPrimaryColor"
+                        value={formData.designPreferences?.customPrimaryColor || '#3B82F6'}
+                        onChange={handleChange}
+                        placeholder="#3B82F6"
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Design Style</label>
+                  <select
+                    name="designPreferences.designStyle"
+                    value={formData.designPreferences?.designStyle}
                     onChange={handleChange}
-                    placeholder="#3B82F6"
-                  />
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                  >
+                    <option value="modern">Modern (Clean & Minimalist)</option>
+                    <option value="classic">Classic (Traditional & Elegant)</option>
+                    <option value="minimal">Minimal (Simple & Focused)</option>
+                    <option value="bold">Bold (Impactful & Dynamic)</option>
+                    <option value="creative">Creative (Unique & Artistic)</option>
+                  </select>
+                </div>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Font Style</label>
+                  <select
+                    name="designPreferences.fontStyle"
+                    value={formData.designPreferences?.fontStyle}
+                    onChange={handleChange}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                  >
+                    <option value="sans-serif">Sans-serif (Modern)</option>
+                    <option value="serif">Serif (Traditional)</option>
+                  </select>
                 </div>
               </div>
             )}
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Design Style</label>
-              <select
-                name="designPreferences.designStyle"
-                value={formData.designPreferences?.designStyle}
-                onChange={handleChange}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-              >
-                <option value="modern">Modern (Clean & Minimalist)</option>
-                <option value="classic">Classic (Traditional & Elegant)</option>
-                <option value="minimal">Minimal (Simple & Focused)</option>
-                <option value="bold">Bold (Impactful & Dynamic)</option>
-                <option value="creative">Creative (Unique & Artistic)</option>
-              </select>
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Font Style</label>
-              <select
-                name="designPreferences.fontStyle"
-                value={formData.designPreferences?.fontStyle}
-                onChange={handleChange}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-              >
-                <option value="sans-serif">Sans-serif (Modern)</option>
-                <option value="serif">Serif (Traditional)</option>
-              </select>
-            </div>
-            
+                
+            {/* Logo options are always available regardless of AI styling */}
             <div className="flex items-center mb-4">
               <input
                 id="includeLogo"
@@ -329,6 +390,15 @@ const Questionnaire: React.FC = () => {
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Enter a URL to your company logo (PNG or SVG recommended)
+                </p>
+              </div>
+            )}
+            
+            {/* Show AI styling info box */}
+            {autoStylingEnabled && (
+              <div className="mt-4 bg-gray-50 p-3 rounded-md border border-gray-100">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">AI styling enabled:</span> Our system will automatically analyze your content and select the best design elements, color themes, and images to match your presentation's purpose.
                 </p>
               </div>
             )}

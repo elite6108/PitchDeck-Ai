@@ -69,42 +69,191 @@ export const convertBackground = (backgroundValue: string | undefined, defaultCo
  */
 export const sanitizeGradient = (cssValue: string, fallbackColor: string = '#0f172a'): string => {
   // Return fallback if no value or not a gradient
-  if (!cssValue || (!cssValue.includes('gradient('))) {
-    return cssValue || fallbackColor;
-  }
   
   try {
-    // Handle linear-gradient and radial-gradient
-    if (cssValue.includes('linear-gradient') || cssValue.includes('radial-gradient')) {
-      // Parse color stops and remove any with non-finite values
-      const colorStopRegex = /(rgba?|hsla?)\(.*?\)\s+\d*\.?\d+%?|\d*\.?\d+%/g;
-      const colorStops = cssValue.match(colorStopRegex) || [];
-      
-      // If we have fewer than 2 valid color stops, the gradient is invalid
-      if (colorStops.length < 2) {
-        return fallbackColor;
-      }
-      
-      // Check for NaN or Infinity in color stop percentages
-      const hasInvalidStop = colorStops.some(stop => {
-        const percentMatch = stop.match(/([+-]?\d*\.?\d+)%?$/); 
-        if (percentMatch && percentMatch[1]) {
-          const value = parseFloat(percentMatch[1]);
-          return isNaN(value) || !isFinite(value);
-        }
-        return false;
-      });
-      
-      if (hasInvalidStop) {
-        // Replace with a simple gradient using the theme color
-        return `linear-gradient(to bottom, ${fallbackColor}, ${fallbackColor})`;
-      }
+    // For multiple gradients, just use the first one
+    let sanitizedValue = cssValue;
+    if (sanitizedValue.includes('),')) {
+      sanitizedValue = sanitizedValue.split('),')[0] + ')';
     }
     
-    return cssValue;
+    // If gradient has 'to right bottom' or similar syntax, simplify it
+    if (sanitizedValue.includes('to ')) {
+      sanitizedValue = sanitizedValue.replace(/to\s+(top|right|bottom|left|center|\w+\s+\w+)/g, '180deg');
+    }
+    
+    // Handle malformed percentages or values
+    if (sanitizedValue.includes('NaN') || sanitizedValue.includes('Infinity') || sanitizedValue.includes('undefined')) {
+      return fallbackColor;
+    }
+    
+    // Check for color stops - just validate they exist
+    const colorStopRegex = /(rgba?|hsla?)\(.*?\)\s+\d*\.?\d+%?|\d*\.?\d+%/g;
+    if (!sanitizedValue.match(colorStopRegex)) {
+      return fallbackColor; // No valid color stops found
+    }
+    
+    return sanitizedValue;
   } catch (error) {
-    console.warn('Error sanitizing gradient:', error);
+    console.warn('Error sanitizing gradient, using fallback:', error);
     return fallbackColor;
+  }
+};
+
+/**
+ * Load an image from URL and return as an HTMLImageElement
+ */
+export const loadImage = (src: string): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // Enable CORS
+    img.onload = () => resolve(img);
+    img.onerror = (e) => reject(e);
+    
+    // Clean up URL if needed
+    let cleanSrc = src;
+    if (src.startsWith('url(') && src.endsWith(')')) {
+      cleanSrc = src.substring(4, src.length - 1).replace(/['"\/]/g, '');
+    }
+    
+    img.src = cleanSrc;
+    
+    // Set a timeout to prevent hanging
+    setTimeout(() => {
+      if (!img.complete) {
+        reject(new Error('Image load timed out'));
+      }
+    }, 5000);
+  });
+};
+
+/**
+ * Helper function to split text into multiple lines based on canvas width
+ */
+export const getTextLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  
+  // Handle empty text
+  if (words.length === 0 || (words.length === 1 && words[0] === '')) {
+    return [];
+  }
+  
+  // For presentation purposes, limit the number of characters per line to improve readability
+  // This will force more line breaks and improve readability with wider spacing
+  const MAX_CHARS_PER_LINE = 60;
+  
+  let currentLine = words[0];
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i];
+    const width = ctx.measureText(currentLine + ' ' + word).width;
+    
+    // Break the line if it exceeds the max width or if it's getting too long character-wise
+    if (width < maxWidth && currentLine.length + word.length + 1 < MAX_CHARS_PER_LINE) {
+      currentLine += ' ' + word;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  lines.push(currentLine);
+  return lines;
+};
+
+/**
+ * Draw a custom background pattern based on the slide type and theme
+ */
+export const drawCustomBackground = (ctx: CanvasRenderingContext2D, width: number, height: number, themeColor: string, slideType: string): void => {
+  // Fill the background with theme color
+  ctx.fillStyle = themeColor;
+  ctx.fillRect(0, 0, width, height);
+  
+  // Add a subtle gradient overlay
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.1)');
+  gradient.addColorStop(0.5, 'rgba(255,255,255,0.05)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.2)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  
+  // Add decorative elements based on slide type
+  ctx.globalAlpha = 0.1; // Very subtle
+  
+  if (slideType === 'cover' || slideType === 'closing') {
+    // Draw diagonal stripes for cover/closing slides
+    const brandAccent = getBrandAccentColor(themeColor);
+    ctx.strokeStyle = brandAccent;
+    ctx.lineWidth = 30;
+    
+    for (let i = -width; i < width * 2; i += 220) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i + width, height);
+      ctx.stroke();
+    }
+  } else if (slideType === 'problem' || slideType === 'solution') {
+    // Draw circles for problem/solution slides
+    const radius = width * 0.15;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    
+    ctx.beginPath();
+    ctx.arc(width * 0.85, height * 0.15, radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.arc(width * 0.15, height * 0.85, radius * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Draw a subtle grid pattern for other slides
+    const gridSize = 100;
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    
+    // Vertical lines
+    for (let x = gridSize; x < width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    
+    // Horizontal lines
+    for (let y = gridSize; y < height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+  }
+  
+  // Add a brand corner accent
+  const cornerSize = 200;
+  ctx.fillStyle = getBrandAccentColor(themeColor);
+  ctx.globalAlpha = 0.2;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(cornerSize, 0);
+  ctx.lineTo(0, cornerSize);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Reset alpha
+  ctx.globalAlpha = 1.0;
+};
+
+/**
+ * Get a complementary accent color for a theme
+ */
+export const getBrandAccentColor = (theme: string): string => {
+  switch (theme) {
+    case 'blue': return '#4FC3F7';
+    case 'green': return '#81C784';
+    case 'purple': return '#B39DDB';
+    case 'red': return '#FF8A65';
+    case 'orange': return '#FFB74D';
+    case 'teal': return '#4DB6AC';
+    default: return '#64B5F6';
   }
 };
 
@@ -123,202 +272,282 @@ export const renderSlideToCanvas = async (
   _width: number,
   _height: number,
   _theme: string,
-  scale: number = 3
+  _scale: number = 3
 ): Promise<HTMLCanvasElement> => {
-  // Create a clean copy of the slide to avoid modifying the original
-  const slideClone = slide.cloneNode(true) as HTMLElement;
+  // Create a simple canvas with only the basic content from the slide
+  const canvas = document.createElement('canvas');
+  canvas.width = 1920;
+  canvas.height = 1080;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Could not get canvas context');
+  }
   
-  // Set explicit dimensions for better rendering accuracy
-  slideClone.style.width = '1920px';
-  slideClone.style.height = '1080px';
-  slideClone.style.position = 'absolute';
-  slideClone.style.overflow = 'hidden';
+  // Get theme color from the slide's dataset
+  const themeColor = slide.dataset.theme ? getThemeColorValue(slide.dataset.theme) : '#0f172a';
   
-  // Remove any nested .slide-for-export elements to avoid duplicates
-  const nestedSlides = slideClone.querySelectorAll('.slide-for-export');
-  nestedSlides.forEach(nestedSlide => {
-    if (nestedSlide !== slideClone) {
-      (nestedSlide as HTMLElement).style.display = 'none';
+  // Fill background with theme color
+  ctx.fillStyle = themeColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Create a clean simplified representation of the slide
+  const simpleSlide = document.createElement('div');
+  simpleSlide.id = `simple-slide-${Date.now()}`;
+  simpleSlide.style.width = '1920px';
+  simpleSlide.style.height = '1080px';
+  simpleSlide.style.position = 'absolute';
+  simpleSlide.style.padding = '80px';
+  simpleSlide.style.boxSizing = 'border-box';
+  simpleSlide.style.color = 'white';
+  simpleSlide.style.fontFamily = 'Arial, sans-serif';
+  simpleSlide.style.backgroundColor = themeColor;
+  
+  // Extract heading text from the slide - search more aggressively for any title content
+  let headingText = '';
+  const headingElements = slide.querySelectorAll('h1, h2, h3, .slide-headline, .title, [class*="title"], [class*="heading"]');
+  if (headingElements.length > 0) {
+    // Use the first non-empty heading element
+    for (const el of headingElements) {
+      if (el.textContent && el.textContent.trim()) {
+        headingText = el.textContent.trim();
+        break;
+      }
     }
-  });
+  }
   
-  // Remove any standalone image elements that might be causing duplicate slides
-  const standaloneImages = slideClone.querySelectorAll('.slide-image-only, .image-container');
-  standaloneImages.forEach(img => {
-    (img as HTMLElement).style.display = 'none';
-  });
+  // If no heading was found, try to use the first significant text in the slide
+  if (!headingText) {
+    const allTextElements = slide.querySelectorAll('p, div, span');
+    for (const el of allTextElements) {
+      if (el.textContent && el.textContent.trim() && el.textContent.trim().length > 10) {
+        headingText = el.textContent.trim();
+        break;
+      }
+    }
+  }
   
-  // Force image loading to complete before rendering
-  const images = Array.from(slideClone.querySelectorAll('img'));
-  await Promise.all(
-    images.map(img => {
-      if (img.complete) return Promise.resolve();
-      return new Promise<void>(resolve => {
-        const onLoad = (): void => {
-          img.removeEventListener('load', onLoad);
-          resolve();
-        };
-        img.addEventListener('load', onLoad);
-        // Force highest quality images for export
-        if (img.src.includes('jpeg') || img.src.includes('jpg')) {
-          // Replace quality param for JPEG images to maximum
-          img.src = img.src.replace(/q=[0-9]+/, 'q=100').replace(/quality=[0-9]+/, 'quality=100');
-        }
-        // Apply CSS filter to enhance vibrancy
-        img.style.filter = 'contrast(1.05) saturate(1.2)';
-        // Add timeout to avoid infinite waiting
-        setTimeout(() => resolve(), 3000);
+  // Create heading element if we found text
+  if (headingText) {
+    const heading = document.createElement('h1');
+    heading.textContent = headingText;
+    heading.style.fontSize = '60px';
+    heading.style.fontWeight = '700';
+    heading.style.marginBottom = '40px';
+    heading.style.color = 'white';
+    heading.style.textShadow = '0 2px 6px rgba(0,0,0,0.5)';
+    simpleSlide.appendChild(heading);
+  }
+  
+  // Extract paragraph text from the slide - be more aggressive with finding content
+  const paragraphElements = Array.from(slide.querySelectorAll('p:not(.slide-headline), .paragraph, .content, [class*="paragraph"], [class*="content"], div:not(.slide-content):not(.slide-container):not([class*="container"])'))
+    .filter(el => {
+      const text = el.textContent?.trim() || '';
+      // Only include elements with reasonable text content that aren't just containers
+      return text.length > 0 && 
+             text.split(' ').length >= 3 && 
+             !el.querySelector('p, div') && // Avoid containers with other content elements
+             !el.classList.contains('slide-for-export') &&
+             el !== slide; // Don't include the slide itself
+    });
+  
+  if (paragraphElements.length > 0) {
+    const contentDiv = document.createElement('div');
+    contentDiv.style.fontSize = '30px';
+    contentDiv.style.lineHeight = '1.5';
+    contentDiv.style.color = 'white';
+    
+    paragraphElements.forEach(p => {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = p.textContent?.trim() || '';
+      paragraph.style.marginBottom = '20px';
+      contentDiv.appendChild(paragraph);
+    });
+    
+    simpleSlide.appendChild(contentDiv);
+  }
+  
+  // Extract bullet points from the slide - search for both list items and elements that might be formatted as bullets
+  let bulletElements = Array.from(slide.querySelectorAll('li, .bullet-item, .bullet, [class*="bullet"], ul > *'));
+  
+  // If no bullets found, look for other elements that might be bullet-like (short text elements)
+  if (bulletElements.length === 0) {
+    const potentialBullets = Array.from(slide.querySelectorAll('p, div, span'))
+      .filter(el => {
+        const text = el.textContent?.trim() || '';
+        // Short, non-header text that might be bullet-like
+        return text.length > 0 && text.length < 200 && text.split(' ').length <= 20 &&
+               !el.classList.contains('slide-headline') && 
+               !el.classList.contains('title') &&
+               !headingText.includes(text);
       });
-    })
-  );
-
-  // Apply CSS filters to images for better vibrancy
-  Array.from(slideClone.querySelectorAll('img')).forEach(img => {
-    img.style.filter = 'contrast(1.05) saturate(1.2)';
-    // Force high quality
-    if (img.src.includes('jpeg') || img.src.includes('jpg')) {
-      img.src = img.src.replace(/q=[0-9]+/, 'q=100').replace(/quality=[0-9]+/, 'quality=100');
-    }
-  });
+    
+    bulletElements = potentialBullets;
+  }
   
-  // Fix gradient backgrounds to prevent canvas rendering errors
-  const elementsWithBackgrounds = slideClone.querySelectorAll('*');
-  elementsWithBackgrounds.forEach(el => {
-    const element = el as HTMLElement;
-    const computedStyle = window.getComputedStyle(element);
+  if (bulletElements.length > 0) {
+    const bulletList = document.createElement('ul');
+    bulletList.style.listStyleType = 'none';
+    bulletList.style.padding = '0';
+    bulletList.style.marginTop = '30px';
     
-    // Check for gradient backgrounds
-    const bgImage = computedStyle.backgroundImage;
-    if (bgImage && bgImage.includes('gradient')) {
-      // Sanitize the gradient to prevent non-finite color stop errors
-      const sanitizedGradient = sanitizeGradient(bgImage, '#0f172a');
-      element.style.backgroundImage = sanitizedGradient;
-    }
-    
-    // Also check for problematic background positions (can cause similar errors)
-    const bgPositionX = computedStyle.backgroundPositionX;
-    const bgPositionY = computedStyle.backgroundPositionY;
-    
-    if (bgPositionX.includes('NaN') || bgPositionY.includes('NaN') || 
-        bgPositionX.includes('Infinity') || bgPositionY.includes('Infinity')) {
-      element.style.backgroundPosition = 'center center';
-    }
-  });
-  
-  return html2canvas(slideClone, {
-    scale,
-    useCORS: true,
-    allowTaint: true,
-    logging: false,
-    backgroundColor: '#0f172a', // Use dark blue background to match the web preview
-    imageTimeout: 7500, // Reduced timeout for faster processing
-    onclone: (clonedDocument) => {
-      // Apply completely revamped styles for exact web preview matching
-      // Sanitize gradients in the cloned document
-    const elementsWithGradients = clonedDocument.querySelectorAll('*');
-    elementsWithGradients.forEach(el => {
-      const element = el as HTMLElement;
-      const bgImage = element.style.backgroundImage;
-      
-      if (bgImage && bgImage.includes('gradient')) {
-        element.style.backgroundImage = sanitizeGradient(bgImage, '#0f172a');
+    bulletElements.forEach(li => {
+      const bulletText = li.textContent?.trim() || '';
+      if (bulletText) {
+        const bulletItem = document.createElement('li');
+        bulletItem.textContent = bulletText;
+        bulletItem.style.fontSize = '30px';
+        bulletItem.style.marginBottom = '15px';
+        bulletItem.style.paddingLeft = '30px';
+        bulletItem.style.position = 'relative';
+        bulletItem.style.color = 'white';
+        
+        // Add bullet point symbol
+        const bullet = document.createElement('span');
+        bullet.textContent = '•';
+        bullet.style.position = 'absolute';
+        bullet.style.left = '0';
+        bullet.style.color = 'white';
+        bulletItem.insertBefore(bullet, bulletItem.firstChild);
+        
+        bulletList.appendChild(bulletItem);
       }
     });
-      
-    const styles = clonedDocument.createElement('style');
-      styles.innerHTML = `
-        * {
-          -webkit-print-color-adjust: exact !important;
-          color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-
-        /* Clean slate - override default rendering */
-        body, html {
-          margin: 0 !important;
-          padding: 0 !important;
-          overflow: hidden !important;
-          background: #0f172a !important;
-        }
-
-        /* Make everything super-explicit and force dark background */
-        .slide-wrapper, .slide, .slide-content, .slide-for-export, [class*="slide"],
-        .absolute, .inset-0, .export-background, [class*="wrapper"], [class*="container"] {
-          background-color: #0f172a !important;
-          color: white !important;
-          opacity: 1 !important;
-          box-shadow: none !important;
-          position: relative !important;
-          overflow: hidden !important;
-        }
-
-        /* Completely hide any document overlays */
-        [class*="document"], [style*="document"], [src*="document"],
-        .slide-background-document, .document-overlay, .document-preview {
-          display: none !important;
-          opacity: 0 !important;
-          visibility: hidden !important;
-        }
-
-        /* Force text elements to be super visible */
-        h1, h2, h3, h4, h5, h6, p, li, span, div {
-          color: white !important;
-          text-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
-          font-weight: 600 !important;
-          opacity: 1 !important;
-        }
-
-        /* Special handling for headline text */
-        h1, .slide-headline, [class*="headline"] {
-          font-size: 2.5rem !important;
-          font-weight: 700 !important;
-          text-shadow: 0 2px 6px rgba(0,0,0,0.4) !important;
-        }
-
-        /* Fix positioning */
-        .text-center, [class*="center"] {
-          text-align: center !important;
-          margin-left: auto !important;
-          margin-right: auto !important;
-        }
-
-        /* Make paragraphs clearer */
-        p { 
-          margin-bottom: 1rem !important;
-          line-height: 1.7 !important;
-        }
-
-        /* Ensure all content inside is visible */
-        * {
-          opacity: 1 !important;
-          visibility: visible !important;
-        }
-
-        /* Hide all scrollbars */
-        ::-webkit-scrollbar {
-          display: none !important;
-        }
-
-        /* Ensure background images are visible but don't cause text overlay issues */
-        [style*="background-image"]:not([style*="gradient"]) {
-          opacity: 1 !important;
-          filter: contrast(1.05) saturate(1.3) !important;
-        }
-        
-        /* Fix for gradient backgrounds */
-        [style*="gradient"] {
-          background: #0f172a !important;
-        }
-
-        /* Enhance image vibrancy */
-        img {
-          filter: contrast(1.05) saturate(1.2) !important;
-        }
-      `;
-      clonedDocument.head.appendChild(styles);
-      return clonedDocument;
+    
+    // Only add the bullet list if we actually added items
+    if (bulletList.children.length > 0) {
+      simpleSlide.appendChild(bulletList);
     }
-  });
+  }
+  
+  // Try to get background image if it exists
+  let backgroundImage = null;
+  const bgElement = slide.style.backgroundImage ? slide : slide.querySelector('[style*="background-image"]');
+  if (bgElement) {
+    const style = window.getComputedStyle(bgElement);
+    const bgImageUrl = style.backgroundImage;
+    
+    if (bgImageUrl && bgImageUrl !== 'none' && !bgImageUrl.includes('gradient')) {
+      // Extract URL from the CSS background-image property
+      const urlMatch = bgImageUrl.match(/url\(['"]?([^'")]+)['"]?\)/);
+      if (urlMatch && urlMatch[1]) {
+        backgroundImage = urlMatch[1];
+      }
+    }
+  }
+  
+  // Temporarily attach the slide to the document body
+  const tempContainer = document.createElement('div');
+  tempContainer.style.position = 'absolute';
+  tempContainer.style.left = '-9999px';
+  tempContainer.style.top = '-9999px';
+  tempContainer.appendChild(simpleSlide);
+  document.body.appendChild(tempContainer);
+  
+  // If we have a background image, load it and draw it to the canvas
+  if (backgroundImage) {
+    try {
+      // Draw the background image with a dark overlay for better text contrast
+      const img = await loadImage(backgroundImage);
+      
+      // Draw with proper sizing
+      ctx.globalAlpha = 0.9; // More opaque for better background visibility
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      // Add a semi-transparent overlay for better text contrast
+      ctx.globalAlpha = 0.3; // Lighter overlay to let more background show through
+      ctx.fillStyle = themeColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1.0;
+    } catch (error) {
+      console.warn('Failed to load background image:', error);
+    }
+  }
+  
+  // Render our simple slide with html2canvas
+  try {
+    // Log what we're trying to render for debugging
+    console.log(`Rendering slide with content: ${simpleSlide.textContent?.substring(0, 50)}...`);
+    
+    const renderedCanvas = await html2canvas(simpleSlide, {
+      backgroundColor: themeColor,
+      scale: 2,
+      logging: true, // Enable logging for debugging
+      removeContainer: false, // Don't remove the container to help with debugging
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1080,
+      windowWidth: 1920,
+      windowHeight: 1080,
+      useCORS: true,
+      allowTaint: true,
+      onclone: (clonedDoc) => {
+        const style = clonedDoc.createElement('style');
+        style.innerHTML = `
+          * {
+            font-family: Arial, sans-serif !important;
+            color: white !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5) !important;
+          }
+          h1, h2, h3 {
+            font-size: 60px !important;
+            font-weight: 700 !important;
+            margin-bottom: 40px !important;
+          }
+          p {
+            font-size: 30px !important;
+            line-height: 1.5 !important;
+            margin-bottom: 20px !important;
+          }
+          li {
+            font-size: 30px !important;
+            margin-bottom: 15px !important;
+          }
+        `;
+        clonedDoc.head.appendChild(style);
+      }
+    });
+    
+    // Draw the rendered content on top of our background
+    ctx.drawImage(renderedCanvas, 0, 0, canvas.width, canvas.height);
+  } catch (error) {
+    console.error('Error rendering slide content:', error);
+    
+    // If rendering fails, at least draw the title text directly on the canvas
+    if (headingText) {
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 60px Arial';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 2;
+      ctx.fillText(headingText, canvas.width / 2, 150);
+    }
+  }
+  
+  // Clean up the temporary elements
+  if (tempContainer && tempContainer.parentNode) {
+    tempContainer.parentNode.removeChild(tempContainer);
+  }
+  
+  // Add slide number for reference
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'right';
+  ctx.fillText(`Slide ${slide.dataset.slideIndex || ''}`, canvas.width - 50, canvas.height - 30);
+  
+  // If we didn't get any content, add a fallback message
+  if (!headingText && paragraphElements.length === 0 && bulletElements.length === 0) {
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 40px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Slide Content', canvas.width / 2, canvas.height / 2 - 20);
+    ctx.font = '30px Arial';
+    ctx.fillText('Content not available in export view', canvas.width / 2, canvas.height / 2 + 30);
+  }
+  
+  return canvas;
+
 };
 
 /**
@@ -383,7 +612,7 @@ export const prepareSlidesForExport = (slides: HTMLElement[], deck: PitchDeck): 
   
   // Apply export specific styles to each slide
   slides.forEach((slide, index) => {
-    if (!deck.slides) return;
+    if (!deck.slides || deck.slides.length === 0) return;
     
     // Store the theme in the slide's dataset for reference
     const slideIndex = Math.min(index, deck.slides.length - 1); // Guard against out-of-bounds
@@ -449,134 +678,51 @@ export const prepareSlidesForExport = (slides: HTMLElement[], deck: PitchDeck): 
 };
 
 /**
- * Export deck to PDF with vibrant backgrounds and clear text
+ * Filter out unwanted slides to avoid duplicate content in PDF
  * 
- * @param deck - The pitch deck to export
- * @param slidesContainer - HTML element containing the rendered slides
- * @param onProgress - Callback for reporting export progress
- * @returns Promise that resolves to the generated PDF
+ * @param slides - Array of slide elements to filter
+ * @param deck - The pitch deck containing slide data
+ * @returns Array of filtered slide elements
  */
-/**
- * Export slides with fallback mechanism for cases where normal export fails
- * 
- * @param deck - The pitch deck to export
- * @param slideElements - Array of slide elements to export
- * @param onProgress - Callback for reporting export progress
- * @param pdf - Existing PDF instance or undefined to create a new one
- * @returns Promise that resolves to the generated PDF
- */
-const exportSlidesWithFallback = async (
-  _deck: PitchDeck, // Unused but kept for API consistency
-  slideElements: HTMLElement[],
-  onProgress: ExportProgressCallback,
-  existingPdf?: jsPDF
-): Promise<jsPDF> => {
-  // Use existing PDF or create a new one
-  const pdf = existingPdf || new jsPDF({
-    orientation: 'landscape',
-    unit: 'pt', 
-    format: [1920, 1080],
-    compress: true, 
-    precision: 8,
-    hotfixes: ['px_scaling']
+export const filterSlidesForExport = (slides: HTMLElement[], _deck: PitchDeck): HTMLElement[] => {
+  // Filter out unwanted slides to avoid duplicate content in PDF
+  const uniqueSlides: HTMLElement[] = [];
+  const slideMap = new Map<string, HTMLElement>();
+  const processedIds = new Set<string>();
+  
+  // First pass: Group slides by their content ID to avoid duplicates
+  slides.forEach(slide => {
+    if (!slide) return;
+    
+    // Skip any slide that's hidden
+    if (window.getComputedStyle(slide).display === 'none') return;
+    
+    // Get the slide index from the dataset or generate one
+    const slideIndex = slide.dataset.slideIndex || slide.id || `slide-${Math.random().toString(36).substring(2, 9)}`;
+    if (processedIds.has(slideIndex)) return; // Skip if we've already processed this ID
+    processedIds.add(slideIndex);
+    
+    // Filter out slides that are just image containers with no text content
+    const hasTextContent = !!slide.querySelector('h1, h2, h3, p, li, span, .slide-headline, .slide-text');
+    const isStandaloneImageContainer = slide.classList.contains('image-container') && !hasTextContent;
+    if (isStandaloneImageContainer) return;
+    
+    // Store the slide, replacing any existing entry for this index
+    slideMap.set(slideIndex, slide);
+    
+    // Remove any duplicate content within this slide
+    const nestedDuplicates = slide.querySelectorAll('.slide-for-export:not(:first-child), .slide-content:not(:first-child)');
+    nestedDuplicates.forEach(dupe => dupe.parentNode?.removeChild(dupe));
   });
   
-  try {
-    // Calculate total number of steps for progress reporting
-    const totalSteps = slideElements.length * 2; // Render + add to PDF
-    let currentStep = 0;
-    
-    // Process each slide
-    for (let i = 0; i < slideElements.length; i++) {
-      // Report progress
-      currentStep++;
-      onProgress(Math.round((currentStep / totalSteps) * 100));
-      
-      try {
-        // Basic slide rendering without fancy preprocessing
-        const slide = slideElements[i];
-        console.log(`Processing slide ${i} in fallback mode`);
-        
-        // Add a page for all slides except the first
-        if (i > 0) {
-          pdf.addPage();
-        }
-        
-        // Try to create a basic canvas rendering
-        const canvas = document.createElement('canvas');
-        canvas.width = 1920;
-        canvas.height = 1080;
-        const ctx = canvas.getContext('2d');
-        
-        if (ctx) {
-          // Fill with theme color
-          const theme = slide.dataset.theme || 'blue';
-          ctx.fillStyle = getThemeColorValue(theme);
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          
-          try {
-            // Attempt simplified rendering of the slide
-            const simplifiedCanvas = await html2canvas(slide, {
-              scale: 2,
-              useCORS: true,
-              allowTaint: true,
-              backgroundColor: getThemeColorValue(theme),
-              logging: false
-            });
-            
-            // Add to PDF
-            pdf.addImage(
-              simplifiedCanvas.toDataURL('image/jpeg', 0.92),
-              'JPEG',
-              0,
-              0,
-              pdf.internal.pageSize.getWidth(),
-              pdf.internal.pageSize.getHeight(),
-              `slide-${i}`,
-              'FAST'
-            );
-          } catch (renderError) {
-            console.error(`Fallback rendering error for slide ${i}:`, renderError);
-            
-            // Just use the basic colored canvas with text
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 60px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText(`Slide ${i+1}`, canvas.width / 2, canvas.height / 2 - 40);
-            ctx.font = '36px Arial';
-            ctx.fillText('Content could not be rendered', canvas.width / 2, canvas.height / 2 + 40);
-            
-            pdf.addImage(
-              canvas.toDataURL('image/jpeg'),
-              'JPEG',
-              0,
-              0,
-              pdf.internal.pageSize.getWidth(),
-              pdf.internal.pageSize.getHeight(),
-              `slide-fallback-${i}`,
-              'FAST'
-            );
-          }
-        }
-        
-      } catch (slideError) {
-        console.error(`Error processing slide ${i}:`, slideError);
-        // Continue to next slide
-      }
-      
-      // Report progress for PDF addition step
-      currentStep++;
-      onProgress(Math.round((currentStep / totalSteps) * 100));
-    }
-    
-    // Final progress update
-    onProgress(100);
-    return pdf;
-    
-  } catch (error) {
-    console.error('Error in fallback export:', error);
-    throw error;
-  }
+  // Convert map values to array  
+  slideMap.forEach(slide => {
+    uniqueSlides.push(slide);
+  });
+  
+  console.log(`After filtering, ${uniqueSlides.length} valid slides found`);
+  
+  return uniqueSlides;
 };
 
 /**
@@ -589,141 +735,264 @@ const exportSlidesWithFallback = async (
  */
 export const exportToPDF = async (
   deck: PitchDeck,
-  slidesContainer: HTMLElement,
+  _slidesContainer: HTMLElement, // Unused parameter but kept for API compatibility
   onProgress: ExportProgressCallback
 ): Promise<jsPDF> => {
-  // Create PDF with properly configured settings for better quality output
-  const pdf = new jsPDF({
-    orientation: 'landscape',
-    unit: 'pt', 
-    format: [1920, 1080],
-    compress: true, 
-    precision: 8,
-    hotfixes: ['px_scaling']
-  });
-
   try {
-    // Get all slides from the export container
-    // Looking at the structure from ExportSlideRenderer, we need to select .slide-for-export elements
-    // that are inside .slide-wrapper elements
-    const slideElements = Array.from(slidesContainer.querySelectorAll('.slide-for-export'));
-    console.log(`Found ${slideElements.length} total slide elements`);
-    
-    // Use a less strict filter to keep most slide elements
-    const uniqueSlideElements = slideElements.filter((slide) => {
-      // Accept slides that are in a wrapper or directly in the container
-      // This matches the structure from ExportSlideRenderer.tsx
-      const hasValidParent = slide.parentElement && (
-        slide.parentElement.classList.contains('slide-wrapper') ||
-        slide.parentElement === slidesContainer ||
-        slide.parentElement.classList.contains('export-slides-container')
-      );
-      
-      // Avoid truly empty slides
-      const isNotEmpty = slide.children.length > 0 || slide.textContent?.trim() !== '';
-      
-      return hasValidParent && isNotEmpty;
+    // Initialize PDF
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt', 
+      format: [1920, 1080],
+      compress: true,
+      precision: 6
     });
     
-    console.log(`After filtering, ${uniqueSlideElements.length} valid slides found`);
-    
-    // If still no slides found, try a more lenient approach
-    if (uniqueSlideElements.length === 0) {
-      console.warn('No slides matched strict criteria, using all non-empty slides');
-      // Just take all slides as a last resort - we'll handle empty ones in the fallback function
-      const fallbackSlides = slideElements;
-      
-      if (fallbackSlides.length === 0) {
-        throw new Error('No valid slides found for export');
-      }
-      
-      return exportSlidesWithFallback(deck, fallbackSlides as HTMLElement[], onProgress, pdf);
+    // Make sure we have slides in the deck
+    if (!deck.slides || deck.slides.length === 0) {
+      throw new Error('No slides found in deck for export');
     }
-
+    
+    console.log(`Found ${deck.slides.length} slides in deck for export`);
+    
     // Calculate total number of steps for progress reporting
-    const totalSteps = uniqueSlideElements.length * 2; // Render + add to PDF
+    const totalSteps = deck.slides.length * 2; // Render + add to PDF
     let currentStep = 0;
 
-    // Apply styles to improve export quality
-    prepareSlidesForExport(uniqueSlideElements as HTMLElement[], deck);
-
-    // Process each slide
-    for (let i = 0; i < uniqueSlideElements.length; i++) {
+    // Process each slide directly from the deck data
+    for (let i = 0; i < deck.slides.length; i++) {
       // Report progress for rendering step
       currentStep++;
       onProgress(Math.round((currentStep / totalSteps) * 100));
 
-      // Render slide to canvas with enhanced settings
-      const slide = uniqueSlideElements[i] as HTMLElement;
+      // Get the current slide data
+      const slide = deck.slides[i];
       
-      console.log(`Rendering slide ${i} of ${uniqueSlideElements.length}`);
+      console.log(`Rendering slide ${i} of ${deck.slides.length}: ${slide.title || 'Untitled'}`);
         
       try {
-        // Make a deep clone of the slide to avoid modifying the original
-        const slideClone = slide.cloneNode(true) as HTMLElement;
-        slideClone.style.width = '1920px';
-        slideClone.style.height = '1080px';
-        slideClone.style.overflow = 'hidden';
-        slideClone.style.position = 'absolute';
+        // Create a canvas for this slide
+        const canvas = document.createElement('canvas');
+        canvas.width = 1920;
+        canvas.height = 1080;
+        const ctx = canvas.getContext('2d');
         
-        // Sanitize any problematic gradients before rendering
-        const elementsWithGradients = slideClone.querySelectorAll('*');
-        elementsWithGradients.forEach(el => {
-          const element = el as HTMLElement;
+        if (!ctx) {
+          throw new Error('Could not get canvas context');
+        }
+        
+        // Get the theme color
+        const themeColor = getThemeColorValue(slide.content?.color_theme || 'blue');
+        
+        // Fill background with theme color
+        ctx.fillStyle = themeColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Add a dark overlay gradient for better text contrast
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(0,0,0,0.3)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0.6)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Create custom background patterns/graphics based on theme
+        drawCustomBackground(ctx, canvas.width, canvas.height, themeColor, slide.slide_type || 'content');
+        
+        // Try to draw background image if available - with better visibility
+        if (slide.content?.background_image && slide.content.background_image !== 'none') {
           try {
-            const computedStyle = window.getComputedStyle(element);
+            const bgImage = await loadImage(slide.content.background_image);
             
-            if (computedStyle.backgroundImage && computedStyle.backgroundImage.includes('gradient')) {
-              element.style.backgroundImage = sanitizeGradient(
-                computedStyle.backgroundImage, 
-                getThemeColorValue(slide.dataset.theme || 'blue')
-              );
-            }
-          } catch (styleError) {
-            console.warn('Error processing element style:', styleError);
+            // Position image more prominently - right side of slide
+            const imageWidth = canvas.width * 0.45; // 45% of slide width
+            const imageHeight = canvas.height * 0.7; // 70% of slide height
+            const imageX = canvas.width - imageWidth - 100; // Right side with margin
+            const imageY = (canvas.height - imageHeight) / 2; // Vertically centered
+            
+            // Draw with higher opacity
+            ctx.globalAlpha = 0.9;
+            ctx.drawImage(bgImage, imageX, imageY, imageWidth, imageHeight);
+            ctx.globalAlpha = 1.0;
+            
+            // Add a subtle border to the image
+            ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(imageX, imageY, imageWidth, imageHeight);
+          } catch (imgError) {
+            console.warn('Error loading background image:', imgError);
           }
-        });
+        }
         
-        const canvas = await renderSlideToCanvas(slideClone, 1920, 1080, 'blue', 2);
+        // Set up text rendering
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        
+        // Add branded header bar
+        const brandAccent = getBrandAccentColor(slide.content?.color_theme || 'blue');
+        ctx.fillStyle = brandAccent;
+        ctx.globalAlpha = 0.8;
+        ctx.fillRect(0, 0, canvas.width, 100);
+        ctx.globalAlpha = 1.0;
+        
+        // Add slide title/headline with enhanced styling
+        const headlineText = slide.content?.headline || slide.title || 'Slide ' + (i + 1);
+        
+        // Add more space below the header for all content
+        
+        // Add text shadow for better contrast
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+        
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 72px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(headlineText, 150, 200, canvas.width - 300);
+        
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        
+        // Add slide subheadline if available
+        if (slide.content?.subheadline) {
+          ctx.font = 'bold 48px Arial';
+          ctx.fillText(slide.content.subheadline, canvas.width / 2, 280, canvas.width - 300);
+        }
+        
+        // Calculate content width based on whether we have an image
+        const hasImage = slide.content?.background_image && slide.content.background_image !== 'none';
+        const contentWidth = hasImage ? canvas.width * 0.5 - 150 : canvas.width - 300;
+        
+        // Add paragraphs with improved line spacing
+        if (slide.content?.paragraphs && slide.content.paragraphs.length > 0) {
+          ctx.font = '36px Arial';
+          ctx.textAlign = 'left';
+          
+          let yPos = 350;
+          slide.content.paragraphs.forEach(paragraph => {
+            const lines = getTextLines(ctx, paragraph, contentWidth);
+            lines.forEach(line => {
+              // Add drop shadow for better text visibility
+              ctx.shadowColor = 'rgba(0,0,0,0.5)';
+              ctx.shadowBlur = 4;
+              ctx.shadowOffsetX = 2;
+              ctx.shadowOffsetY = 2;
+              
+              ctx.fillText(line, 150, yPos, contentWidth);
+              yPos += 150; // Dramatically increased line spacing for better readability
+            });
+            yPos += 120; // Much more space between paragraphs
+          });
+          
+          // Reset shadow
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        }
+        
+        // Add bullets with improved styling
+        if (slide.content?.bullets && slide.content.bullets.length > 0) {
+          ctx.font = '36px Arial';
+          ctx.textAlign = 'left';
+          
+          // Calculate starting position based on paragraphs with extreme spacing
+          // If there are paragraphs, start bullets much lower on the slide
+          let yPos = slide.content.paragraphs?.length ? 
+                    (350 + (slide.content.paragraphs.length * 300)) : 450;
+          
+          // Calculate content width based on whether we have an image
+          const hasImage = slide.content?.background_image && slide.content.background_image !== 'none';
+          const contentWidth = hasImage ? canvas.width * 0.5 - 200 : canvas.width - 350;
+          
+          slide.content.bullets.forEach(bullet => {
+            // Draw larger, more visible custom bullet point with brand styling
+            ctx.fillStyle = getBrandAccentColor(slide.content?.color_theme || 'blue');
+            ctx.beginPath();
+            ctx.arc(150, yPos - 15, 12, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw bullet text with white color and shadow
+            ctx.fillStyle = 'white';
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            ctx.font = '36px Arial';
+            
+            // Draw bullet text with more spacing
+            const lines = getTextLines(ctx, bullet, contentWidth);
+            lines.forEach((line, index) => {
+              // Use larger font for bullets
+              ctx.font = 'bold 40px Arial';
+              ctx.fillText(line, 200, yPos + (index * 130), contentWidth);
+              if (index > 0) yPos += 130;
+            });
+            yPos += 180; // Extreme spacing between bullets
+          });
+          
+          // Reset shadow and color
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+          ctx.fillStyle = 'white';
+        }
+        
+        // Add slide type at the bottom (optional debugging info)
+        ctx.font = 'italic 24px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(slide.slide_type || 'content', 100, canvas.height - 50);
+        
+        // Add slide number
+        ctx.textAlign = 'right';
+        ctx.fillText(`${i + 1}/${deck.slides.length}`, canvas.width - 100, canvas.height - 50);
+        
+        // Add the slide to the PDF with proper positioning
+        if (i > 0) {
+          pdf.addPage();
+        }
 
-      // Add canvas to PDF, except for the first slide which is added differently
-      if (i > 0) {
-        pdf.addPage();
-      }
-
-      // Add the slide to the PDF with proper positioning
-      pdf.addImage(
-        canvas.toDataURL('image/jpeg', 0.95),
-        'JPEG',
-        0,
-        0,
-        pdf.internal.pageSize.getWidth(),
-        pdf.internal.pageSize.getHeight(),
-        `slide-${i}`,
-        'FAST'
-      );
+        // Add the canvas to the PDF
+        pdf.addImage(
+          canvas.toDataURL('image/jpeg', 0.95),
+          'JPEG',
+          0,
+          0,
+          pdf.internal.pageSize.getWidth(),
+          pdf.internal.pageSize.getHeight(),
+          `slide-${i}`,
+          'FAST'
+        );
       } catch (renderError) {
         console.error(`Error rendering slide ${i}:`, renderError);
         
-        // Create a fallback canvas with just the theme color
+        // Create a fallback canvas with just the theme color and error message
         const fallbackCanvas = document.createElement('canvas');
         fallbackCanvas.width = 1920;
         fallbackCanvas.height = 1080;
         const ctx = fallbackCanvas.getContext('2d');
         if (ctx) {
-          const slideTheme = slide.dataset.theme || 'blue';
-          ctx.fillStyle = getThemeColorValue(slideTheme);
+          const themeColor = getThemeColorValue(slide.content?.color_theme || 'blue');
+          ctx.fillStyle = themeColor;
           ctx.fillRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
           
           // Add error text
           ctx.fillStyle = 'white';
           ctx.font = 'bold 60px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText('Error rendering slide', fallbackCanvas.width / 2, fallbackCanvas.height / 2 - 40);
-          ctx.font = '36px Arial';
-          ctx.fillText('This slide contains unsupported content', fallbackCanvas.width / 2, fallbackCanvas.height / 2 + 40);
+          ctx.fillText(slide.title || `Slide ${i+1}`, fallbackCanvas.width / 2, fallbackCanvas.height / 2 - 40);
+          ctx.font = '40px Arial';
+          ctx.fillText('Error rendering slide content', fallbackCanvas.width / 2, fallbackCanvas.height / 2 + 40);
           
-          // Add this fallback to PDF
+          // Add to PDF
+          if (i > 0) {
+            pdf.addPage();
+          }
+          
           pdf.addImage(
             fallbackCanvas.toDataURL('image/jpeg'),
             'JPEG',
@@ -731,7 +1000,7 @@ export const exportToPDF = async (
             0,
             pdf.internal.pageSize.getWidth(),
             pdf.internal.pageSize.getHeight(),
-            `slide-fallback-${i}`,
+            `slide-error-${i}`,
             'FAST'
           );
         }
@@ -741,16 +1010,19 @@ export const exportToPDF = async (
       currentStep++;
       onProgress(Math.round((currentStep / totalSteps) * 100));
     }
-
+    
     // Final progress update
     onProgress(100);
+    
     return pdf;
+    
   } catch (error) {
     console.error('Error exporting to PDF:', error);
     throw error;
   }
 };
 
+// ... (rest of the code remains the same)
 // Default export for backward compatibility
 const pdfExportService = {
   exportToPDF,
