@@ -10,6 +10,9 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import CreateDeckPage from './pages/deck/CreateDeckPage';
 import ViewDeckPage from './pages/deck/ViewDeckPage';
 import EditDeckPage from './pages/deck/EditDeckPage';
+import GenerateAgreementPage from './pages/agreement/GenerateAgreementPage';
+import MyAgreementsPage from './pages/agreement/MyAgreementsPage';
+import ViewAgreementPage from './pages/agreement/ViewAgreementPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Protected route component
@@ -78,6 +81,40 @@ function App() {
           element={
             <ProtectedRoute>
               <EditDeckPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Business Agreement */}
+        <Route 
+          path="/agreements" 
+          element={
+            <ProtectedRoute>
+              <GenerateAgreementPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/agreements/create" 
+          element={
+            <ProtectedRoute>
+              <GenerateAgreementPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/agreements/my-agreements" 
+          element={
+            <ProtectedRoute>
+              <MyAgreementsPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/agreements/view/:id" 
+          element={
+            <ProtectedRoute>
+              <ViewAgreementPage />
             </ProtectedRoute>
           } 
         />

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusIcon, SearchIcon, PresentationIcon } from 'lucide-react';
+import { PlusIcon, SearchIcon, PresentationIcon, FileTextIcon } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import Footer from '../../components/layout/Footer';
 import DeckCard from '../../components/deck/DeckCard';
@@ -40,13 +40,21 @@ const DashboardPage: React.FC = () => {
                 Manage and edit your pitch decks
               </p>
             </div>
-            <div className="mt-4 md:mt-0">
+            <div className="mt-4 md:mt-0 flex space-x-4">
               <Button
                 variant="primary"
                 onClick={() => navigate('/create')}
               >
-                <PlusIcon className="h-5 w-5 mr-1" />
+                <PlusIcon className="h-4 w-4 mr-1" />
                 Create New Deck
+              </Button>
+              
+              <Button
+                variant="secondary"
+                onClick={() => navigate('/agreements')}
+              >
+                <FileTextIcon className="h-4 w-4 mr-1" />
+                Business Agreements
               </Button>
             </div>
           </div>
@@ -99,13 +107,21 @@ const DashboardPage: React.FC = () => {
                   Get started by creating your first pitch deck.
                 </p>
               )}
-              <div className="mt-6">
+              <div className="mt-6 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 justify-center">
                 <Button
                   variant="primary"
                   onClick={() => navigate('/create')}
                 >
-                  <PlusIcon className="h-5 w-5 mr-1" />
+                  <PlusIcon className="h-4 w-4 mr-1" />
                   Create New Deck
+                </Button>
+                
+                <Button
+                  variant="secondary"
+                  onClick={() => navigate('/agreements')}
+                >
+                  <FileTextIcon className="h-4 w-4 mr-1" />
+                  Business Agreements
                 </Button>
               </div>
             </div>
