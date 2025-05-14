@@ -5,20 +5,26 @@
  * and image query generation.
  */
 
-// IMPORTANT: This is a development-only configuration
-// For production deployment, use environment variables in Netlify
+/**
+ * OpenAI API key management
+ * Using environment variables for security
+ */
 
-// Get API key from environment variables
-// This will work in production when properly configured in Netlify
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
+// Get the OpenAI API key from environment variables
+const OPENAI_API_KEY = (import.meta.env.VITE_OPENAI_API_KEY || '').trim();
 
-// Log API key status (safely)
+// Get the X AI API key from environment variables (for fallback)
+const X_AI_API_KEY = (import.meta.env.VITE_X_AI_API_KEY || '').trim();
+
+// Log API key status for debugging
+console.log('API key available:', !!OPENAI_API_KEY);
+console.log('X AI API Key available:', !!X_AI_API_KEY);
+
+// Only log presence of keys, not their details
 console.log('OpenAI API Key available:', !!OPENAI_API_KEY);
-console.log('Key type:', OPENAI_API_KEY.startsWith('sk-proj-') ? 'Project Key' : 
-                       OPENAI_API_KEY.startsWith('sk-svcacct-') ? 'Service Account Key' : 
-                       OPENAI_API_KEY.startsWith('sk-') ? 'Standard Key' : 'Unknown');
+console.log('X AI API Key available:', !!X_AI_API_KEY);
 
-// No duplicate logging needed
+// No further logging of key details
 
 /**
  * Extract and validate the OpenAI API key
@@ -35,9 +41,8 @@ const extractApiKey = (rawKey: string | undefined): {
   // Clean whitespace
   const trimmed = rawKey.trim();
   
-  // Check key type based on prefix
+  // Check key type based on prefix (without logging details)
   if (trimmed.startsWith('sk-svcacct-')) {
-    console.log('Detected service account API key');
     // For service account keys, extract the organization ID
     const parts = trimmed.split('-');
     if (parts.length >= 3) {
@@ -49,14 +54,11 @@ const extractApiKey = (rawKey: string | undefined): {
     }
     return { key: trimmed, type: 'service_account' };
   } else if (trimmed.startsWith('sk-proj-')) {
-    console.log('Detected project API key');
     return { key: trimmed, type: 'project' };
   } else if (trimmed.startsWith('sk-')) {
-    console.log('Detected standard API key');
     return { key: trimmed, type: 'standard' };
   }
   
-  console.log('Unknown API key format');
   return { key: trimmed, type: 'unknown' };
 };
 
@@ -91,13 +93,28 @@ export const queryOpenAI = async (
   // Default configuration
   const model = options.model || 'gpt-3.5-turbo';
   const temperature = options.temperature || 0.7;
-  const maxTokens = options.maxTokens || 500;
+  const maxTokens = options.maxTokens || 4000; // Increased token limit for longer responses
   const useMock = options.useMock || false;
   
   // Use mock service if requested or if no API key is available
   if (useMock || !apiKeyInfo.key) {
     console.log('Using mock OpenAI service (real service unavailable)');
     return getMockResponse(prompt);
+  }
+  
+  // Try X AI if available
+  if (X_AI_API_KEY) {
+    try {
+      console.log('Attempting to use X AI as primary service');
+      const xaiResponse = await queryXAI(prompt, systemPrompt, options);
+      if (xaiResponse) {
+        console.log('X AI response successful');
+        return xaiResponse;
+      }
+    } catch (error) {
+      console.warn('X AI request failed, falling back to OpenAI:', error);
+      // Continue to OpenAI
+    }
   }
   
   console.log('Using real OpenAI service');
@@ -110,7 +127,7 @@ export const queryOpenAI = async (
     // Create headers with proper authorization
     const headers: OpenAIHeaders = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKeyInfo.key}`
+      'Authorization': `Bearer ${OPENAI_API_KEY}`
     };
     
     // Add the appropriate headers based on key type
@@ -164,23 +181,41 @@ export const queryOpenAI = async (
     // Log response status
     console.log('OpenAI API Response status:', response.status);
     
-    // Check if the response is successful
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenAI API Error:', errorData);
-      
-      // If we get a 401 error, try with different approaches based on key type
-      if (response.status === 401) {
-        if (apiKeyInfo.type === 'project') {
-          console.log('Retrying project API key with different configuration...');
+      // Enhanced error logging for better debugging
+      try {
+        const errorData = await response.json();
+        console.error('OpenAI API Error Details:', errorData);
+        // Log more detailed error information
+        if (errorData.error) {
+          console.error('Error Type:', errorData.error.type);
+          console.error('Error Message:', errorData.error.message);
+          console.error('Error Code:', errorData.error.code);
           
+          // Add specific handling for common error types
+          if (errorData.error.type === 'invalid_request_error' && response.status === 401) {
+            console.warn('⚠️ Your API key appears to be invalid or has insufficient permissions');
+            console.warn('⚠️ Check that your API key is current and billing is enabled on your account');
+            console.warn('⚠️ Current key type detected:', apiKeyInfo.type);
+          }
+        }
+      } catch (parseError) {
+        console.error('Could not parse error response:', await response.text());
+      }
+      
+      // Try different strategies based on the type of API key and error
+      if (apiKeyInfo.type === 'project' && response.status === 401) {
+        // For project API keys, try without the beta header
+        console.log('Retrying project API key without beta header...');
+        
+        try {
           // Create new headers without the beta header as a fallback
           const retryHeaders = { ...headers };
           delete retryHeaders['OpenAI-Beta'];
           
           console.log('Retry request with headers:', {
             'Content-Type': retryHeaders['Content-Type'],
-            'Authorization': 'Bearer sk-***'
+            'Authorization': 'Bearer sk-***' // Masked for security
           });
           
           const retryResponse = await fetch(apiUrl, {
@@ -212,16 +247,21 @@ export const queryOpenAI = async (
           } else {
             console.error('Project API key retry also failed');
           }
-        } else if (apiKeyInfo.type === 'service_account' && apiKeyInfo.orgId) {
-          console.log('Retrying with alternate organization format...');
-          
+        } catch (retryError) {
+          console.error('Error during retry:', retryError);
+        }
+      } else if (apiKeyInfo.type === 'service_account' && apiKeyInfo.orgId && response.status === 401) {
+        // For service account keys, try with a different organization format
+        console.log('Retrying with alternate organization format...');
+        
+        try {
           // Create new headers with a different organization format
           const retryHeaders = { ...headers };
           retryHeaders['OpenAI-Organization'] = apiKeyInfo.orgId; // Try without the 'org-' prefix
           
-          console.log('Retry request with headers:', {
+          console.log('Retry request with organization headers:', {
             'Content-Type': retryHeaders['Content-Type'],
-            'Authorization': 'Bearer sk-***',
+            'Authorization': 'Bearer sk-***', // Masked for security
             'OpenAI-Organization': retryHeaders['OpenAI-Organization'] || 'not set'
           });
           
@@ -252,8 +292,10 @@ export const queryOpenAI = async (
             const retryContent = retryData.choices[0]?.message?.content || 'No content in retry response';
             return retryContent;
           } else {
-            console.error('Retry also failed');
+            console.error('Service account retry also failed');
           }
+        } catch (retryError) {
+          console.error('Error during service account retry:', retryError);
         }
       }
       
@@ -328,6 +370,77 @@ const getMockAgreementResponse = (prompt: string): string => {
     ]
   });
 };
+
+/**
+ * Query the X AI API
+ * @param prompt The prompt to send to the API
+ * @param systemPrompt The system prompt to use
+ * @param options Additional options for the API request
+ * @returns The response from the API or null if there's an error
+ */
+async function queryXAI(
+  prompt: string,
+  systemPrompt: string = 'You are a helpful assistant.',
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+  } = {}
+): Promise<string | null> {
+  if (!X_AI_API_KEY) {
+    console.log('No X AI API key available');
+    return null;
+  }
+
+  try {
+    // X AI API endpoint
+    const apiUrl = 'https://api.x.ai/v1/chat/completions';
+    
+    // Set up headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${X_AI_API_KEY}`,
+    };
+    
+    console.log('Sending request to X AI API');
+    
+    // Make the API request
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user',
+            stream: false,
+            content: prompt
+          }
+        ],
+        temperature: options.temperature || 0.7,
+        max_tokens: options.maxTokens || 4000,
+        model: 'grok-1'
+      })
+    });
+    
+    console.log('X AI API Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('X AI API Error:', errorData);
+      return null;
+    }
+    
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || 'No content in X AI response';
+    return content;
+  } catch (error) {
+    console.error('Error querying X AI API:', error);
+    return null;
+  }
+}
 
 export default {
   queryOpenAI
