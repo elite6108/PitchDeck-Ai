@@ -11,17 +11,24 @@
  */
 
 // Get the OpenAI API key from environment variables
-const OPENAI_API_KEY = (import.meta.env.VITE_OPENAI_API_KEY || '').trim();
+// NOTE: For production, these should come from server-side environment variables
+// and not be exposed to the client
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY ||
+  (window as any).ENV_OPENAI_API_KEY ||
+  '';
+
+// Get the dedicated DALL-E API key
+const DALLE_API_KEY = import.meta.env.VITE_OPENAI_DALLE_API_KEY ||
+  (window as any).ENV_DALLE_API_KEY ||
+  OPENAI_API_KEY ||
+  '';
 
 // Get the X AI API key from environment variables (for fallback)
 const X_AI_API_KEY = (import.meta.env.VITE_X_AI_API_KEY || '').trim();
 
-// Log API key status for debugging
-console.log('API key available:', !!OPENAI_API_KEY);
-console.log('X AI API Key available:', !!X_AI_API_KEY);
-
-// Only log presence of keys, not their details
+// Log API key status for debugging (not the actual keys)
 console.log('OpenAI API Key available:', !!OPENAI_API_KEY);
+console.log('DALL-E API Key available:', !!DALLE_API_KEY);
 console.log('X AI API Key available:', !!X_AI_API_KEY);
 
 // No further logging of key details
@@ -64,6 +71,9 @@ const extractApiKey = (rawKey: string | undefined): {
 
 // Get the cleaned API key and its type
 const apiKeyInfo = extractApiKey(OPENAI_API_KEY);
+
+// Get the cleaned DALL-E API key and its type
+const dalleKeyInfo = extractApiKey(DALLE_API_KEY);
 
 // Check if we have a valid API key
 if (!apiKeyInfo.key) {
@@ -442,6 +452,117 @@ async function queryXAI(
   }
 }
 
+/**
+ * Generate images using DALL-E via OpenAI API
+ * @param prompt The prompt to generate an image for
+ * @param options Additional options for the API request
+ * @returns The generated image URL or null if there's an error
+ */
+export const generateImageWithDALLE = async (
+  prompt: string,
+  options: {
+    size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792';
+    quality?: 'standard' | 'hd';
+    style?: 'vivid' | 'natural';
+    n?: number;
+    model?: string;
+    useMock?: boolean;
+  } = {}
+): Promise<string | null> => {
+  // Default configuration
+  const model = options.model || 'dall-e-3';
+  const size = options.size || '1024x1024';
+  const quality = options.quality || 'standard';
+  const style = options.style || 'vivid';
+  const n = options.n || 1; // Number of images to generate
+  const useMock = options.useMock || false;
+  
+  // IMPORTANT: If mock mode is explicitly requested, always use the mock
+  // This takes precedence over everything else
+  if (useMock) {
+    console.log('Using mock DALL-E service (mock explicitly requested)');
+    return getMockImageUrl();
+  }
+  
+  // DEVELOPMENT SAFEGUARD: Only check for actual environment variable issues
+  // We only need to check if the key is missing or starts with the literal string "VITE_"
+  if (!dalleKeyInfo.key) {
+    console.log('Using mock DALL-E service (no API key available)');
+    return getMockImageUrl();
+  }
+  
+  // Log that we're using the real service
+  console.log('Using real DALL-E service with key:', dalleKeyInfo.key.substring(0, 10) + '...');
+  
+  // At this point we should have a valid API key
+  const effectiveKey = dalleKeyInfo.key;
+  const effectiveKeyInfo = dalleKeyInfo;
+  
+  console.log('Using OpenAI DALL-E for image generation');
+  console.log('Image prompt:', prompt);
+  
+  try {
+    // Set up the API endpoint
+    const apiUrl = 'https://api.openai.com/v1/images/generations';
+    
+    // Create headers with proper authorization
+    const headers: OpenAIHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${effectiveKey}`
+    };
+    
+    // Add organization ID if available (for service account keys)
+    if (effectiveKeyInfo.type === 'service_account' && effectiveKeyInfo.orgId) {
+      headers['OpenAI-Organization'] = effectiveKeyInfo.orgId;
+    }
+    
+    // Make the API request
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model,
+        prompt,
+        n,
+        size,
+        quality,
+        style
+      })
+    });
+    
+    // Check if the request was successful
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('DALL-E API Error:', errorData);
+      throw new Error(`DALL-E API error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+    
+    // Parse the response
+    const data = await response.json();
+    
+    // Return the image URL
+    if (data.data && data.data.length > 0 && data.data[0].url) {
+      return data.data[0].url;
+    } else {
+      console.error('No image URL in DALL-E response:', data);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error generating image with DALL-E:', error);
+    return null;
+  }
+};
+
+/**
+ * Generate a mock image URL for testing purposes
+ * @returns A mock image URL
+ */
+const getMockImageUrl = (): string => {
+  // Return a placeholder image URL
+  return 'https://placehold.co/1024x1024/EEE/31343C?text=DALL-E+Mock+Image';
+};
+
 export default {
-  queryOpenAI
+  queryOpenAI,
+  generateImageWithDALLE
 };
