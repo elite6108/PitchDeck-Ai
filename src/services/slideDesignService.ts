@@ -210,7 +210,7 @@ const slideDesignService = {
    * @param content Content of the slide
    * @returns Enhanced slide design properties
    */
-  generateSlideDesign(slideType: string, themeId: string, content: any) {
+  generateSlideDesign(slideType: string, themeId: string) {
     // Get theme styling
     const themeStyle = professionalThemeStyles[themeId] || professionalThemeStyles.light;
     

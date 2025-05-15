@@ -311,11 +311,10 @@ const aiSlideDesignService = {
           orientation: 'landscape'
         }) : Promise.resolve([]);
         
-      const themePromise = stockImageService.getThemedBackgrounds({
-        themeColor: analysis.industry === 'technology' ? 'blue' : 
-                     analysis.industry === 'healthcare' ? 'green' : 'purple',
-        perPage: 5
-      });
+      const themePromise = stockImageService.getThemedBackgrounds(
+        analysis.industry === 'technology' ? 'blue' : 
+        analysis.industry === 'healthcare' ? 'green' : 'purple'
+      );
       
       // Get multiple sets of images for more variety
       const [keywordImages, themeImages] = await Promise.all([searchPromise, themePromise]);
@@ -756,7 +755,6 @@ const aiSlideDesignService = {
    * Extract keywords from deck content for fallback analysis
    */
   extractKeywords(deck: PitchDeck): string[] {
-    const _keywords: string[] = [];
     const text: string[] = [];
     
     // Collect all text content

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { FolderOpen } from 'lucide-react';
-import { generateLogo, LogoGenerationOptions } from '../../services/logoGeneratorService';
+import { generateLogo } from '../../services/logoGeneratorService';
+import { LogoGenerationOptions } from '../../types/logo';
 import { useLogoStore } from '../../store/logoStore';
 
 // Industry options for the dropdown
@@ -57,6 +58,7 @@ const LogoGenerator: React.FC = () => {
   const [colorScheme, setColorScheme] = useState('');
   const [additionalDetails, setAdditionalDetails] = useState('');
   const [squareFormat, setSquareFormat] = useState(true);
+  const [model, setModel] = useState<LogoGenerationOptions['model']>('dalle'); // Default to DALL-E
   
   // Results state
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -81,13 +83,19 @@ const LogoGenerator: React.FC = () => {
     setIsGenerating(true);
     
     try {
+      // Make sure the model is explicitly defined to prevent default fallback
+      const selectedModel = model || 'dalle';
+      
+      console.log('Selected model for logo generation:', selectedModel);
+      
       const options: LogoGenerationOptions = {
         companyName,
         industry: industry || undefined,
         style,
         colorScheme: colorScheme || undefined,
         additionalDetails: additionalDetails || undefined,
-        squareFormat
+        squareFormat,
+        model: selectedModel // Ensure model is explicitly passed
       };
       
       // Create a prompt string for tracking what was used to generate this logo
@@ -167,46 +175,74 @@ const LogoGenerator: React.FC = () => {
         {/* Form Section */}
         <div className="space-y-4">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Company Name */}
-            <div>
-              <label htmlFor="company-name" className="block text-sm font-medium text-gray-700 mb-1">
-                Company Name *
-              </label>
-              <input
-                id="company-name"
-                type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                placeholder="Enter your company name"
-                required
-              />
-            </div>
-            
-            {/* Industry */}
-            <div>
-              <label htmlFor="industry" className="block text-sm font-medium text-gray-700 mb-1">
-                Industry
-              </label>
-              <select
-                id="industry"
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="">Select an industry (optional)</option>
-                {INDUSTRY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-6">
+              {/* Model selection toggle */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Model Selection</label>
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    className={`px-4 py-2 text-sm font-medium rounded-md flex-1 ${model === 'dalle' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 border border-gray-300'}`}
+                    onClick={() => setModel('dalle')}
+                  >
+                    DALL-E
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-2 text-sm font-medium rounded-md flex-1 ${model === 'grok' 
+                      ? 'bg-teal-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 border border-gray-300'}`}
+                    onClick={() => setModel('grok')}
+                  >
+                    Grok 2 (X AI)
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Select which model to use for logo generation.</p>
+              </div>
+
+              {/* Company Name */}
+              <div>
+                <label htmlFor="company-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Company Name *
+                </label>
+                <input
+                  id="company-name"
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter your company name"
+                  required
+                />
+              </div>
+              
+              {/* Industry */}
+              <div>
+                <label htmlFor="industry" className="block text-sm font-medium text-gray-700 mb-1">
+                  Industry
+                </label>
+                <select
+                  id="industry"
+                  value={industry}
+                  onChange={(e) => setIndustry(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">Select an industry (optional)</option>
+                  {INDUSTRY_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             
             {/* Style */}
             <div>
               <label htmlFor="style" className="block text-sm font-medium text-gray-700 mb-1">
-                Logo Style
+                Style
               </label>
               <select
                 id="style"
@@ -215,11 +251,11 @@ const LogoGenerator: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
               >
                 {STYLE_OPTIONS.map((styleOption) => {
-                  // Ensure styleOption is not undefined
-                  const value = styleOption || 'modern';
+                  // Ensure styleOption is defined
+                  const option = styleOption || 'modern';
                   return (
-                    <option key={value} value={value}>
-                      {value.charAt(0).toUpperCase() + value.slice(1)}
+                    <option key={option} value={option}>
+                      {option.charAt(0).toUpperCase() + option.slice(1)}
                     </option>
                   );
                 })}
@@ -239,9 +275,7 @@ const LogoGenerator: React.FC = () => {
               >
                 <option value="">Select a color scheme (optional)</option>
                 {COLOR_SCHEME_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
+                  <option key={option} value={option}>{option}</option>
                 ))}
               </select>
             </div>
@@ -249,15 +283,15 @@ const LogoGenerator: React.FC = () => {
             {/* Additional Details */}
             <div>
               <label htmlFor="additional-details" className="block text-sm font-medium text-gray-700 mb-1">
-                Additional Details
+                Additional Details (Optional)
               </label>
               <textarea
                 id="additional-details"
                 value={additionalDetails}
                 onChange={(e) => setAdditionalDetails(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                placeholder="Add any specific requirements or elements you'd like to include"
                 rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                placeholder="Any other details you'd like to include in your logo"
               />
             </div>
             
@@ -271,7 +305,7 @@ const LogoGenerator: React.FC = () => {
                 className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
               />
               <label htmlFor="square-format" className="ml-2 block text-sm text-gray-700">
-                Generate in square format (recommended)
+                Optimize for square format (recommended for social media profiles)
               </label>
             </div>
             
@@ -279,7 +313,7 @@ const LogoGenerator: React.FC = () => {
             <button
               type="submit"
               disabled={isGenerating}
-              className="inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGenerating ? (
                 <>
@@ -287,9 +321,11 @@ const LogoGenerator: React.FC = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Generating Logo...
+                  Generating...
                 </>
-              ) : 'Generate Logo'}
+              ) : (
+                'Generate Logo'
+              )}
             </button>
           </form>
           

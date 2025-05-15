@@ -13,15 +13,27 @@
 // Get the OpenAI API key from environment variables
 // NOTE: For production, these should come from server-side environment variables
 // and not be exposed to the client
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY ||
-  (window as any).ENV_OPENAI_API_KEY ||
-  '';
+let OPENAI_API_KEY = '';
+
+// Prioritize window object for development (where we know API key is properly set)
+if ((window as any).ENV_OPENAI_API_KEY) {
+  OPENAI_API_KEY = String((window as any).ENV_OPENAI_API_KEY);
+} else if (import.meta.env.VITE_OPENAI_API_KEY) {
+  OPENAI_API_KEY = String(import.meta.env.VITE_OPENAI_API_KEY);
+}
 
 // Get the dedicated DALL-E API key
-const DALLE_API_KEY = import.meta.env.VITE_OPENAI_DALLE_API_KEY ||
-  (window as any).ENV_DALLE_API_KEY ||
-  OPENAI_API_KEY ||
-  '';
+let DALLE_API_KEY = '';
+
+// Prioritize window object for development (where we know API key is properly set)
+if ((window as any).ENV_DALLE_API_KEY) {
+  DALLE_API_KEY = String((window as any).ENV_DALLE_API_KEY);
+} else if (import.meta.env.VITE_OPENAI_DALLE_API_KEY) {
+  DALLE_API_KEY = String(import.meta.env.VITE_OPENAI_DALLE_API_KEY);
+} else {
+  // Fallback to OpenAI key if no specific DALL-E key
+  DALLE_API_KEY = OPENAI_API_KEY;
+}
 
 // Get the X AI API key from environment variables (for fallback)
 const X_AI_API_KEY = (import.meta.env.VITE_X_AI_API_KEY || '').trim();
@@ -484,15 +496,24 @@ export const generateImageWithDALLE = async (
     return getMockImageUrl();
   }
   
-  // DEVELOPMENT SAFEGUARD: Only check for actual environment variable issues
-  // We only need to check if the key is missing or starts with the literal string "VITE_"
-  if (!dalleKeyInfo.key) {
+  // DEVELOPMENT SAFEGUARD: Get fresh key value directly from window object
+  const directDalleKey = (window as any).ENV_DALLE_API_KEY || '';
+  
+  if (!directDalleKey || directDalleKey.length < 10) {
     console.log('Using mock DALL-E service (no API key available)');
     return getMockImageUrl();
   }
   
+  // Additional debug logging
+  console.log('DALL-E key length:', directDalleKey.length);
+  console.log('DALL-E key prefix:', directDalleKey.substring(0, 10) + '...');
+  
+  // Override the dalleKeyInfo with the direct key
+  dalleKeyInfo.key = directDalleKey;
+  dalleKeyInfo.type = directDalleKey.startsWith('sk-proj-') ? 'project' : 'standard';
+  
   // Log that we're using the real service
-  console.log('Using real DALL-E service with key:', dalleKeyInfo.key.substring(0, 10) + '...');
+  console.log('Using real DALL-E service with direct API key');
   
   // At this point we should have a valid API key
   const effectiveKey = dalleKeyInfo.key;

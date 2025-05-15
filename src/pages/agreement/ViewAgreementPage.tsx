@@ -111,11 +111,11 @@ const ViewAgreementPage: React.FC = () => {
           </div>
         ) : agreement ? (
           <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex justify-end space-x-3 mb-6">
+            <div className="flex flex-wrap justify-center sm:justify-end gap-3 mb-6">
               <Button 
                 onClick={handleEdit}
                 variant="outline"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 px-4 py-2 min-w-[120px] justify-center"
               >
                 <Edit className="h-4 w-4" />
                 Edit
@@ -123,7 +123,7 @@ const ViewAgreementPage: React.FC = () => {
               <Button 
                 onClick={handleExport}
                 variant="primary"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 px-4 py-2 min-w-[120px] justify-center"
               >
                 <Download className="h-4 w-4" />
                 Export PDF
@@ -131,7 +131,7 @@ const ViewAgreementPage: React.FC = () => {
               <Button 
                 onClick={handleDelete}
                 variant="danger"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 px-4 py-2 min-w-[120px] justify-center"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete

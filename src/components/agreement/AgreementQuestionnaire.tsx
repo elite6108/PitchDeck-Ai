@@ -28,7 +28,7 @@ const AgreementQuestionnaire: React.FC<AgreementQuestionnaireProps> = ({
     setExpandedSection(expandedSection === section ? null : section);
   };
   // AI suggestion helper
-  const requestAiSuggestion = (field: string, context: string) => {
+  const requestAiSuggestion = (field: string) => {
     setAiSuggesting(field);
     
     // Simulate AI suggestion
@@ -290,7 +290,7 @@ const AgreementQuestionnaire: React.FC<AgreementQuestionnaireProps> = ({
                 </label>
                 <button
                   type="button"
-                  onClick={() => requestAiSuggestion('purpose', agreementType)}
+                  onClick={() => requestAiSuggestion('purpose')}
                   className="text-xs flex items-center text-primary-600 hover:text-primary-800"
                   disabled={aiSuggesting === 'purpose'}
                 >
@@ -444,7 +444,7 @@ const AgreementQuestionnaire: React.FC<AgreementQuestionnaireProps> = ({
                 </label>
                 <button
                   type="button"
-                  onClick={() => requestAiSuggestion('additionalTerms', agreementType)}
+                  onClick={() => requestAiSuggestion('additionalTerms')}
                   className="text-xs flex items-center text-primary-600 hover:text-primary-800"
                   disabled={aiSuggesting === 'additionalTerms'}
                 >

@@ -29,7 +29,7 @@ export interface Logo {
   companyName: string;
   imageUrl: string;
   prompt: string;
-  settings: LogoSettings;
+  settings: LogoGenerationOptions;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,12 +37,14 @@ export interface Logo {
 /**
  * Settings used to generate the logo
  */
-export interface LogoSettings {
+export interface LogoGenerationOptions {
+  companyName: string;
   industry?: string;
   style?: 'modern' | 'minimalist' | 'classic' | 'playful' | 'corporate';
   colorScheme?: string;
   additionalDetails?: string;
   squareFormat?: boolean;
+  model?: 'dalle' | 'grok';
 }
 
 /**
@@ -55,7 +57,7 @@ export const toAppLogo = (dbLogo: DbLogo): Logo => {
     companyName: dbLogo.company_name,
     imageUrl: dbLogo.image_url,
     prompt: dbLogo.prompt,
-    settings: dbLogo.settings as LogoSettings,
+    settings: dbLogo.settings as unknown as LogoGenerationOptions,
     createdAt: dbLogo.created_at,
     updatedAt: dbLogo.updated_at
   };
@@ -71,7 +73,7 @@ export const toDbLogo = (logo: Logo): DbLogo => {
     company_name: logo.companyName,
     image_url: logo.imageUrl,
     prompt: logo.prompt,
-    settings: logo.settings as Json,
+    settings: logo.settings as unknown as Json,
     created_at: logo.createdAt,
     updated_at: logo.updatedAt
   };

@@ -196,11 +196,11 @@ const GenerateAgreementPage: React.FC = () => {
               <div className="flex-1 flex flex-col">
                 <AgreementPreview agreement={generatedAgreement} />
                 
-                <div className="mt-6 flex justify-end space-x-3">
+                <div className="mt-6 flex flex-wrap justify-center sm:justify-end gap-3">
                   <Button 
                     variant="outline"
                     onClick={handleSaveAgreement}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] justify-center border-gray-300 bg-white"
                     isDisabled={isSubmitting}
                   >
                     <Save className="h-4 w-4" />
@@ -209,7 +209,7 @@ const GenerateAgreementPage: React.FC = () => {
                   <Button
                     onClick={handleExportPDF}
                     variant="primary"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] justify-center"
                     isDisabled={!generatedAgreement}
                   >
                     <Download className="h-4 w-4" />
@@ -218,7 +218,7 @@ const GenerateAgreementPage: React.FC = () => {
                   <Button
                     onClick={handleViewMyAgreements}
                     variant="secondary"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] justify-center"
                   >
                     <FileText className="h-4 w-4" />
                     My Agreements

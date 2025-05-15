@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import Button from '../ui/Button';
-import { PresentationIcon, LogOutIcon, UserIcon, FileTextIcon, ChevronDownIcon } from 'lucide-react';
+import { PresentationIcon, LogOutIcon, UserIcon, FileTextIcon, ChevronDownIcon, ImageIcon } from 'lucide-react';
 
 const Header: React.FC = () => {
   const { user, signOut } = useAuthStore();
@@ -53,7 +53,10 @@ const Header: React.FC = () => {
                   Create Deck
                 </Link>
                 <Link to="/agreements/create" className="text-gray-700 hover:text-primary-600 px-3 py-2 text-sm font-medium">
-                  Create Business Agreement
+                  Business Agreement
+                </Link>
+                <Link to="/logo" className="text-gray-700 hover:text-primary-600 px-3 py-2 text-sm font-medium">
+                  Logo Generator
                 </Link>
                 <div className="relative ml-4" ref={profileMenuRef}>
                   <button
@@ -81,6 +84,11 @@ const Header: React.FC = () => {
                         <Link to="/agreements/my-agreements" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                           <FileTextIcon className="h-4 w-4 mr-2" />
                           Your Business Documents
+                        </Link>
+                        
+                        <Link to="/logo" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                          <ImageIcon className="h-4 w-4 mr-2" />
+                          Logo Generator
                         </Link>
                         
                         <div className="border-t border-gray-100"></div>

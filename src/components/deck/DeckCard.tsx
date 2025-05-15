@@ -4,8 +4,7 @@ import {
   PresentationIcon, 
   EditIcon, 
   Trash2Icon, 
-  ExternalLinkIcon,
-  SparklesIcon
+  ExternalLinkIcon
 } from 'lucide-react';
 import type { PitchDeck } from '../../types/deck';
 import DeckCreationIndicator from '../dashboard/DeckCreationIndicator';
