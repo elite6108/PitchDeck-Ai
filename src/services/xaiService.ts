@@ -4,6 +4,8 @@
  * Handles interactions with the X AI API for image generation using Grok 2
  */
 
+import { getXAIImageGenerationsUrl } from '../config/apiConfig';
+
 /**
  * X AI API key management
  * Using environment variables for security
@@ -61,8 +63,8 @@ export const generateImageWithGrok = async (
   console.log('Grok 2 image prompt:', prompt);
   
   try {
-    // Set up the API endpoint for Aurora image generation
-    const apiUrl = 'https://api.x.ai/v1/images/generations';
+    // Get the API URL from the centralized config
+    const apiUrl = getXAIImageGenerationsUrl();
     
     // Create headers with proper authorization - use activeKey to ensure we have the right value
     const headers: XAIHeaders = {

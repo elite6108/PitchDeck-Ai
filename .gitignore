@@ -19,6 +19,11 @@ dist-ssr
 .env.test
 .env.production
 
+# Sensitive files with API keys
+src/utils/apiKeyHelper.ts
+src/utils/credentials.js
+src/utils/keys.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

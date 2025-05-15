@@ -11,16 +11,15 @@ import { Slide } from '../types/deck';
 import { ContentAnalysis } from '../types/analysis';
 import { ColorTheme } from '../types/themes';
 import { ThemeSelectionResult } from './themeSelectionService';
+import { getUnsplashSearchUrl, getPexelsSearchUrl } from '../config/apiConfig';
 
 // API key for Unsplash (directly from .env file)
 // In Vite, non-VITE_ prefixed env vars are not automatically exposed to client code
 // But since we're loading from .env directly, we'll use the exact variable name
-const UNSPLASH_API_KEY = import.meta.env.UNSPLASH_API_KEY || import.meta.env.VITE_UNSPLASH_API_KEY || 'r34Jb00K5pm1VYrV3KdwCtD0hQ33LuOxMcN-wZ7HV1s';
-const UNSPLASH_API_URL = 'https://api.unsplash.com/search/photos';
+const UNSPLASH_API_KEY = import.meta.env.UNSPLASH_API_KEY || import.meta.env.VITE_UNSPLASH_API_KEY || '';
 
 // API key for Pexels (should be in environment variables)
 const PEXELS_API_KEY = import.meta.env.VITE_PEXELS_API_KEY || '';
-const PEXELS_API_URL = 'https://api.pexels.com/v1/search';
 
 // Slide type to image keyword mapping
 const SLIDE_TYPE_IMAGE_MAP: Record<string, string[]> = {
@@ -431,8 +430,8 @@ const searchUnsplashImages = async (options: ImageSearchOptions): Promise<StockI
   // Enhance query with color if provided
   const enhancedQuery = themeColor ? `${query} ${themeColor}` : query;
   
-  // Build search URL
-  const url = new URL(UNSPLASH_API_URL);
+  // Get URL from centralized config and build search URL
+  const url = new URL(getUnsplashSearchUrl());
   url.searchParams.append('query', enhancedQuery);
   url.searchParams.append('per_page', count.toString());
   url.searchParams.append('orientation', orientation);
@@ -472,8 +471,8 @@ const searchUnsplashImages = async (options: ImageSearchOptions): Promise<StockI
 const searchPexelsImages = async (options: ImageSearchOptions): Promise<StockImage[]> => {
   const { query, count = 5, orientation = 'landscape' } = options;
   
-  // Build search URL
-  const url = new URL(PEXELS_API_URL);
+  // Get URL from centralized config and build search URL
+  const url = new URL(getPexelsSearchUrl());
   url.searchParams.append('query', query);
   url.searchParams.append('per_page', count.toString());
   url.searchParams.append('orientation', orientation);

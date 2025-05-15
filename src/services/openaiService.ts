@@ -10,6 +10,8 @@
  * Using environment variables for security
  */
 
+import { getOpenAIChatCompletionsUrl, getOpenAIImageGenerationsUrl, getXAIChatCompletionsUrl } from '../config/apiConfig';
+
 // Get the OpenAI API key from environment variables
 // NOTE: For production, these should come from server-side environment variables
 // and not be exposed to the client
@@ -144,7 +146,7 @@ export const queryOpenAI = async (
   
   try {
     // Set up the API endpoint
-    const apiUrl = 'https://api.openai.com/v1/chat/completions';
+    const apiUrl = getOpenAIChatCompletionsUrl();
     
     // Create headers with proper authorization
     const headers: OpenAIHeaders = {
@@ -415,7 +417,7 @@ async function queryXAI(
 
   try {
     // X AI API endpoint
-    const apiUrl = 'https://api.x.ai/v1/chat/completions';
+    const apiUrl = getXAIChatCompletionsUrl();
     
     // Set up headers
     const headers = {
@@ -524,7 +526,7 @@ export const generateImageWithDALLE = async (
   
   try {
     // Set up the API endpoint
-    const apiUrl = 'https://api.openai.com/v1/images/generations';
+    const apiUrl = getOpenAIImageGenerationsUrl();
     
     // Create headers with proper authorization
     const headers: OpenAIHeaders = {

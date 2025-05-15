@@ -13,6 +13,78 @@ import { LogoGenerationOptions } from '../types/logo';
 // Extract the Grok 2 image generation function
 const { generateImageWithGrok } = xaiService;
 
+/**
+ * Creates a condensed but visually rich prompt for Grok 2 that stays within the 1024 character limit
+ * while producing more visually striking logos similar to DALL-E quality
+ * @param companyName The name of the company
+ * @param industry The industry of the company
+ * @param style The style of the logo
+ * @param colorScheme The color scheme for the logo
+ * @param additionalDetails Additional details for logo generation
+ * @param squareFormat Whether the logo should be in square format
+ * @returns A condensed prompt text that stays under 1024 characters but produces rich visuals
+ */
+const createCondensedPrompt = (
+  companyName: string,
+  industry: string = '',
+  style: string = 'modern',
+  colorScheme: string = '',
+  additionalDetails: string = '',
+  squareFormat: boolean = true
+): string => {
+  // Define style descriptors to make the logo more visually interesting
+  const styleDescriptors: Record<string, string> = {
+    'modern': 'sleek, innovative, cutting-edge, with bold geometric shapes and clean lines',
+    'minimalist': 'elegant, refined, with essential elements, clean negative space, and perfect balance',
+    'classic': 'timeless, distinguished, with elegant typography and traditional symbols',
+    'playful': 'vibrant, energetic, with dynamic shapes, bright colors, and creative visual metaphors',
+    'corporate': 'professional, trustworthy, with structured elements and balanced composition',
+    'vintage': 'retro-inspired, nostalgic, with textured details and heritage elements',
+    'luxury': 'premium, sophisticated, with gold/silver accents and refined details',
+    'tech': 'futuristic, digital, with abstract tech elements and innovative symbols'
+  };
+  
+  // Get enhanced style description or use default if style not in our map
+  const styleDesc = styleDescriptors[style] || `${style} with visually striking elements`;
+  
+  // Create a visually rich prompt that fits within Grok 2's 1024 character limit
+  let promptText = `Create an eye-catching, premium ${style} logo for "${companyName}". The logo should be ${styleDesc}. `;
+  
+  // Add enhanced industry context if provided
+  if (industry) {
+    promptText += `Incorporate creative visual metaphors for the ${industry} industry. `;
+  }
+  
+  // Add vibrant color direction
+  if (colorScheme) {
+    promptText += `Use a striking ${colorScheme} color palette with bold contrast and visual depth. `;
+  } else {
+    promptText += `Use a vibrant color palette with excellent contrast that creates visual impact. `;
+  }
+  
+  // Add technical + visual requirements - balancing technical needs with visual quality
+  promptText += `The logo must: 1) have a transparent background, 2) prominently display "${companyName}" in stylish typography, 3) be visually memorable with distinctive shapes/symbols, 4) use ${squareFormat ? 'square format' : 'appropriate proportions'} with professional composition.`;
+  
+  // Add a snippet of additional details if provided (limited to avoid prompt length issues)
+  if (additionalDetails && additionalDetails.trim().length > 0) {
+    // Truncate additional details if needed to stay within limits
+    const maxAdditionalLength = 80;
+    const truncatedDetails = additionalDetails.length > maxAdditionalLength
+      ? additionalDetails.substring(0, maxAdditionalLength) + '...'
+      : additionalDetails;
+    
+    promptText += ` Additional elements: ${truncatedDetails}`;
+  }
+  
+  // Ensure we're under the limit
+  if (promptText.length > 950) {
+    // If still too long, create a more focused version while preserving visual quality direction
+    promptText = `Create a premium ${style} logo for "${companyName}". Make it visually striking with bold colors, creative symbols, and professional composition. Transparent background required.`;
+  }
+  
+  return promptText;
+};
+
 
 /**
  * Generate a logo using either DALL-E or Aurora
@@ -79,7 +151,13 @@ export const generateLogo = async (options: LogoGenerationOptions): Promise<stri
     if (model === 'grok') {
       console.log('Using Grok 2 for image generation');
       try {
-        result = await generateImageWithGrok(promptText);
+        // Create a condensed prompt for Grok 2 that stays within the 1024 character limit
+        const grokPromptText = createCondensedPrompt(companyName, industry, style, colorScheme, additionalDetails, squareFormat);
+        
+        // Log the prompt length to ensure it's below the limit
+        console.log('Grok 2 prompt length:', grokPromptText.length);
+        
+        result = await generateImageWithGrok(grokPromptText);
         // Show the result status
         console.log('Grok 2 generation result:', result ? 'Success' : 'Failed');
         
